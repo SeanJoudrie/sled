@@ -404,12 +404,14 @@ CI proves the simulation cannot even import it.
    bare line segments. Tune until a hill, a jump and a landing all feel right.
 2. ✅ **Determinism gate green**, including the static gates — before there is
    anything to retrofit.
-3. ⬜ Paper, rules, ink/highlighter rendering, parallax.
-4. ⬜ Editor: draw, undo, erase, pan, zoom, play, reset. Ink only.
-5. ⬜ The remaining six brushes.
+3. ✅ Paper, rules, ink/highlighter rendering, parallax.
+4. ✅ Editor: draw, undo, erase, pan, zoom, play, reset.
+5. ✅ All seven brushes — one properties table, seven rows, so this landed with
+   the editor rather than after it.
 6. ⬜ Rider system + click-to-cycle, on placeholder parts.
 7. ⬜ The three stamps in the editor. Portals last — the only subtle maths.
-8. ⬜ Share link wired to the URL.
+   They already run and round-trip; there is just no UI to place one.
+8. ✅ Share link wired to the URL.
 9. ⬜ Hand-drawn parts replace the placeholders. Content only, zero code.
 
 **Open, awaiting a verdict on feel** — nobody has judged the ride yet:
