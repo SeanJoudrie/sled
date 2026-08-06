@@ -29,6 +29,14 @@ right is how you end up tuning to a nice-looking thing that plays badly.
 
 ## Running it
 
+The harness is not published yet. GitHub Pages has to be switched on once, by
+hand, under **Settings → Pages** with **GitHub Actions** as the source — the
+workflow token is refused when it tries (`Resource not accessible by
+integration`), so this is the one step CI cannot do for itself. `deploy.yml`
+checks for it and skips the publish with a notice rather than failing, so the
+moment it is enabled the next push to `main` deploys to
+`https://seanjoudrie.github.io/sled/`.
+
 ```sh
 npm install
 npm run dev        # the tuning harness

@@ -2,10 +2,15 @@ name: deploy
 
 # Publishes the tuning harness to GitHub Pages.
 #
-# configure-pages runs with `enablement: true`, so the first run turns Pages on
-# and points it at Actions rather than failing with "Get Pages site failed".
-# If that step still 404s, Pages is disabled at the org or account level and
-# has to be switched on by hand under Settings → Pages.
+# Pages has to be turned on by hand once, under Settings → Pages, with
+# "GitHub Actions" as the source. The workflow cannot do it: the default
+# token is refused with "Create Pages site failed: Resource not accessible
+# by integration", and `enablement: true` on configure-pages hits the same
+# wall.
+#
+# So it checks first, and skips the publish with a notice rather than
+# failing, which keeps main green while the setting is still off. The moment
+# Pages is enabled, the next push to main publishes with no further changes.
 
 on:
   push:
@@ -25,6 +30,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.pages_check.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,18 +53,33 @@ jobs:
           # matching base path or every asset URL 404s.
           BASE_PATH: /${{ github.event.repository.name }}/
 
+      - name: Is Pages enabled?
+        id: pages_check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages" || echo 000)
+          if [ "$code" = "200" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Pages not enabled::The build passed but was not published. Enable Pages under Settings → Pages with 'GitHub Actions' as the source, and the next push to main will deploy. (Pages API returned $code.)"
+          fi
+
       - uses: actions/configure-pages@v5
-        with:
-          # Create the Pages site on first run instead of requiring someone to
-          # flip the setting by hand before this workflow can ever pass.
-          enablement: true
+        if: steps.pages_check.outputs.enabled == 'true'
 
       - uses: actions/upload-pages-artifact@v3
+        if: steps.pages_check.outputs.enabled == 'true'
         with:
           path: dist
 
   deploy:
     needs: build
+    if: needs.build.outputs.pages_enabled == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
