@@ -101,9 +101,13 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
         with:
-          # deploy-pages defaults to a 10 minute timeout, then cancels the
-          # deployment it was waiting on. The very first publish of a new Pages
-          # site can sit at "deployment_in_progress" for longer than that while
-          # GitHub provisions it — which reads as a broken workflow when the
-          # workflow is fine and the backend is simply slow. Give it room.
-          timeout: 1800000
+          # Back to roughly the default after a spell at 30 minutes.
+          #
+          # The long timeout was added because the very first publish of a new
+          # Pages site sat at "deployment_in_progress" past the 10 minute
+          # default. That was a one-off — provisioning is done — and the long
+          # version actively hurt: this job holds the `pages` concurrency group
+          # for its whole duration, so every push behind a stuck deploy queues
+          # and is eventually cancelled without ever reaching a runner. Failing
+          # fast and releasing the lock beats waiting half an hour.
+          timeout: 600000
