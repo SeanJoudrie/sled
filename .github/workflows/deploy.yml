@@ -53,20 +53,33 @@ jobs:
           # matching base path or every asset URL 404s.
           BASE_PATH: /${{ github.event.repository.name }}/
 
-      - name: Is Pages enabled?
+      - name: Is Pages enabled, and sourced from Actions?
         id: pages_check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+          body=$(mktemp)
+          code=$(curl -sS -o "$body" -w '%{http_code}' \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/pages" || echo 000)
-          if [ "$code" = "200" ]; then
+          build_type=$(jq -r '.build_type // "none"' < "$body" 2>/dev/null || echo none)
+
+          # Both conditions matter, and the second is the one that bites.
+          # A Pages site sourced from a branch answers this endpoint with 200
+          # exactly like an Actions-sourced one, so checking only the status
+          # code lets the job sail through, upload an artifact nothing will
+          # ever consume, and then hang in deploy-pages until it times out —
+          # fifteen silent minutes instead of one clear error.
+          if [ "$code" = "200" ] && [ "$build_type" = "workflow" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Pages not enabled::The build passed but was not published. Enable Pages under Settings → Pages with 'GitHub Actions' as the source, and the next push to main will deploy. (Pages API returned $code.)"
+            if [ "$code" = "200" ]; then
+              echo "::warning title=Pages source is not GitHub Actions::Pages is enabled but its source is \"$build_type\", not \"workflow\". Set Settings → Pages → Source to \"GitHub Actions\"; nothing will publish until then."
+            else
+              echo "::notice title=Pages not enabled::The build passed but was not published. Enable Pages under Settings → Pages with 'GitHub Actions' as the source. (Pages API returned $code.)"
+            fi
           fi
 
       - uses: actions/configure-pages@v5
