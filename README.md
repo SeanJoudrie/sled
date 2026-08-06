@@ -28,30 +28,40 @@ You can draw a track and watch him ride it, and the level travels in the URL.
 
 ## Controls
 
-| | |
+Built for a phone: round buttons in the corners, nothing that needs scrolling.
+
+| Corner | |
 | --- | --- |
-| Draw | press and drag |
-| Brush | click the strip, or `1`–`7` |
-| Erase | right-drag, or the eraser tool (`E`) — takes whole strokes |
-| Move the start flag | the flag tool (`F`) — the sled takes its angle from the line beneath it |
-| Pan | space-drag, middle-drag, or two fingers |
-| Zoom | wheel or pinch, `0.25×`–`4×` in 1/16 steps |
-| Play / pause | `Enter` |
-| Back to editing | `Esc`, or tap the page mid-run |
-| Undo / redo | `⌘Z` / `⇧⌘Z`, 100 deep, whole strokes |
+| bottom left | **Draw** (pencil) · **Material** (shows the current pen) · **Erase** · **More** |
+| bottom right | **Play** · **Reset** |
+| top left | **Undo** · **Redo** |
+| top right | tick, speed, and what a drag will do |
+
+**Draw is a mode.** Tap the pencil to draw; tap it again and a one-finger drag
+moves the page instead. Drawing and panning both want the same gesture, and a
+phone has no right button or space bar to tell them apart. A mouse keeps its
+shortcuts either way — space-drag and middle-drag always pan, right-drag always
+erases.
+
+**Material** opens a sheet of all seven pens, each with its name and its stroke
+class. Picking one hands you back the pencil.
+
+| Keyboard | |
+| --- | --- |
+| `D` / `E` / `H` / `F` | draw · erase · move · start flag |
+| `1`–`7` | pick a pen |
+| `Enter` | play / pause |
+| `Esc` | back to editing |
+| `⌘Z` / `⇧⌘Z` | undo / redo, 100 deep, whole strokes |
+| wheel or pinch | zoom, `0.25×`–`4×` in 1/16 steps |
 
 Drawing a boost line right-to-left boosts **backwards** — the impulse runs along
-the segment as drawn. That is a feature, and the toolbar says so.
+the segment as drawn. That is a feature, and the sheet says so.
 
 ## Running it
 
-The harness is not published yet. GitHub Pages has to be switched on once, by
-hand, under **Settings → Pages** with **GitHub Actions** as the source — the
-workflow token is refused when it tries (`Resource not accessible by
-integration`), so this is the one step CI cannot do for itself. `deploy.yml`
-checks for it and skips the publish with a notice rather than failing, so the
-moment it is enabled the next push to `main` deploys to
-`https://seanjoudrie.github.io/sled/`.
+Live at **<https://seanjoudrie.github.io/sled/>**. Every push to `main`
+republishes it.
 
 ```sh
 npm install
@@ -84,12 +94,12 @@ src/level/
 src/render/         all render state; never written back to the sim
   paper.ts          paper, grain, creases, ruled lines
   strokes.ts        ink vs highlighter, and the wobble cache
-  parallax.ts       the conifers
+  parallax.ts       conifers and rooftops, parallaxed in both axes
   camera.ts         pan, zoom, and the follow during a run
   scene.ts          one frame, composed
 src/editor/
   model.ts          strokes, undo/redo, erase, level derivation
-  toolbar.ts        the strip
+  toolbar.ts        the corner buttons and the material sheet
 src/main.ts         input, gestures, the loop
 scripts/check-determinism.mjs
 docs/spec.md        the build spec

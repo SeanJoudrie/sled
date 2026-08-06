@@ -39,13 +39,21 @@ export const IS_RIDE: readonly boolean[] = Array.from(
   (_, i) => RIDE_POINTS.indexOf(i) >= 0,
 )
 
-/** Rest pose, rider facing +x, origin at the sled nose. y is down. */
+/**
+ * Rest pose, rider facing +x, origin at the sled nose. y is down.
+ *
+ * The base is 28 px, not the 20 it started at. A short base tips easily: the
+ * rider's mass sits 27 px up, so with a 20 px base the whole rig only has to
+ * lean about 20° past a runner before it goes over. 28 px buys 27°, which is
+ * the difference between a hard landing being survivable and being a coin flip.
+ * The seat, head and hand stay centred over the new base.
+ */
 const REST: readonly (readonly [number, number])[] = [
   [0, 0], // nose
-  [-20, 0], // tail
-  [-10, -11], // seat
-  [-10, -27], // head
-  [2, -18], // hand
+  [-28, 0], // tail
+  [-14, -11], // seat
+  [-14, -27], // head
+  [0, -18], // hand
 ]
 
 export type Constraint = {
@@ -67,12 +75,12 @@ export type Constraint = {
  * `seat–hand` is floppy on purpose.
  */
 export const CONSTRAINTS: readonly Constraint[] = [
-  { a: NOSE, b: TAIL, rest: 20.0, k: 1.0 },
-  { a: NOSE, b: SEAT, rest: 14.866, k: 1.0 },
-  { a: TAIL, b: SEAT, rest: 14.866, k: 1.0 },
+  { a: NOSE, b: TAIL, rest: 28.0, k: 1.0 },
+  { a: NOSE, b: SEAT, rest: 17.804, k: 1.0 },
+  { a: TAIL, b: SEAT, rest: 17.804, k: 1.0 },
   { a: SEAT, b: HEAD, rest: 16.0, k: 0.92 },
-  { a: NOSE, b: HEAD, rest: 28.792, k: 0.6 },
-  { a: SEAT, b: HAND, rest: 13.892, k: 0.5 },
+  { a: NOSE, b: HEAD, rest: 30.414, k: 0.6 },
+  { a: SEAT, b: HAND, rest: 15.652, k: 0.5 },
 ]
 
 /**

@@ -96,4 +96,4 @@ export const SPAWN_LIFT = CONTACT_R
  *
  * The top of the hill is exactly where a person puts the flag.
  */
-export const SPAWN_AHEAD = 20.0
+export const SPAWN_AHEAD = 28.0
