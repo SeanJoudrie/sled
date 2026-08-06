@@ -1,0 +1,127 @@
+/**
+ * Ink and highlighter.
+ *
+ * The single most important visual decision in the whole project: ink is thin
+ * and opaque, highlighter is fat, translucent and multiply-blended — and ink
+ * draws *over* highlighter, because you highlight over writing. Behaviour-
+ * carrying lines physically look highlighted, so a level reads without a
+ * legend.
+ */
+
+import type { Stroke } from '../level/stroke.ts'
+import { strokeRng } from '../level/stroke.ts'
+import type { BrushDef } from '../sim/index.ts'
+
+export const INK_WIDTH = 2.4
+export const HIGHLIGHTER_WIDTH = 11
+/** Second highlighter pass, offset, for the doubled edge a real marker leaves. */
+export const HIGHLIGHTER_OFFSET = 0.8
+
+const WOBBLE_STEP = 12
+const WOBBLE_AMOUNT = 0.45
+
+/**
+ * Wobbled polylines, cached by stroke identity.
+ *
+ * Strokes are immutable once committed, so identity is a safe key. This cache
+ * is the *only* place wobble exists: it is never written to level data, and the
+ * physics always uses the straight segment, so a wobble can never affect a run.
+ */
+const wobbleCache = new WeakMap<Stroke, Array<readonly [number, number]>>()
+
+/**
+ * Subdivide into ~12 px pieces and nudge each interior vertex perpendicular.
+ * A hand does not draw a straight line, and a perfectly straight one on ruled
+ * paper looks printed rather than drawn.
+ */
+export function wobbled(s: Stroke): Array<readonly [number, number]> {
+  const hit = wobbleCache.get(s)
+  if (hit) return hit
+
+  const rng = strokeRng(s)
+  const out: Array<readonly [number, number]> = []
+
+  for (let i = 1; i < s.pts.length; i++) {
+    const [ax, ay] = s.pts[i - 1]!
+    const [bx, by] = s.pts[i]!
+    if (i === 1) out.push([ax, ay])
+
+    const dx = bx - ax
+    const dy = by - ay
+    const len = Math.sqrt(dx * dx + dy * dy)
+    const steps = Math.max(1, Math.round(len / WOBBLE_STEP))
+    // Perpendicular unit; a zero-length segment has no direction to offset along.
+    const nx = len > 1e-9 ? -dy / len : 0
+    const ny = len > 1e-9 ? dx / len : 0
+
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps
+      const px = ax + dx * t
+      const py = ay + dy * t
+      // The endpoint stays put, so strokes still meet where they were drawn to meet.
+      const w = k === steps ? 0 : (rng() * 2 - 1) * WOBBLE_AMOUNT
+      out.push([px + nx * w, py + ny * w])
+    }
+  }
+
+  wobbleCache.set(s, out)
+  return out
+}
+
+function trace(ctx: CanvasRenderingContext2D, pts: ReadonlyArray<readonly [number, number]>, ox = 0, oy = 0): void {
+  if (pts.length < 2) return
+  ctx.beginPath()
+  ctx.moveTo(pts[0]![0] + ox, pts[0]![1] + oy)
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]![0] + ox, pts[i]![1] + oy)
+  ctx.stroke()
+}
+
+/** One ink stroke: thin, opaque, wobbled. */
+export function drawInk(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+  ctx.save()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = INK_WIDTH
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = 'source-over'
+  trace(ctx, wobbled(s))
+  ctx.restore()
+}
+
+/** One highlighter stroke: fat, translucent, multiplied, dragged not sketched. */
+export function drawHighlighter(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+  ctx.save()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = HIGHLIGHTER_WIDTH
+  ctx.lineCap = 'square'
+  ctx.lineJoin = 'round'
+  ctx.globalAlpha = 0.5
+  ctx.globalCompositeOperation = 'multiply'
+  // No wobble — a highlighter is dragged, not sketched.
+  trace(ctx, s.pts)
+  trace(ctx, s.pts, HIGHLIGHTER_OFFSET, HIGHLIGHTER_OFFSET)
+  ctx.restore()
+}
+
+/**
+ * Every stroke, highlighter pass first.
+ *
+ * Two passes rather than one loop: an ink line crossing a boost has to sit on
+ * top of it, and that is not something per-stroke ordering can express.
+ */
+export function drawStrokes(
+  ctx: CanvasRenderingContext2D,
+  strokes: readonly Stroke[],
+  brushes: readonly BrushDef[],
+  colour: (token: string) => string,
+): void {
+  for (const s of strokes) {
+    const b = brushes[s.brush]
+    if (b?.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token))
+  }
+  for (const s of strokes) {
+    const b = brushes[s.brush]
+    if (b?.cls === 'ink') drawInk(ctx, s, colour(b.token))
+  }
+}

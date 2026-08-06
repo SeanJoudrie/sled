@@ -13,19 +13,35 @@ link needs no backend, and **the replay is the level**.
 
 ## Status
 
-Phase 1 of 9. What exists is the simulation core, the level format, the
-determinism gate, and a deliberately bare harness to watch the ride in.
+You can draw a track and watch him ride it, and the level travels in the URL.
 
 | | |
 | --- | --- |
 | ✅ **Sim core** | 5-point rig, 6 constraints, 7 brushes, 3 stamps, swept collision |
 | ✅ **Level format** | half-pixel integers → delta → zig-zag → varint → base64url |
 | ✅ **Determinism gate** | 12 checks, green |
-| ✅ **Tuning harness** | bare line segments, no paper, no editor |
-| ⬜ **Phases 3–9** | paper & rendering, editor, rider art, share UI |
+| ✅ **The page** | paper, grain, ruled lines, ink vs highlighter, parallax |
+| ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all seven brushes |
+| ✅ **Share link** | the level lives in the URL; no backend of any kind |
+| ⬜ **Stamps in the editor** | portals, wells and wind run and round-trip, but nothing can place one yet |
+| ⬜ **The rider** | still bare segments; the layered part manifest and the art are the last phases |
 
-The harness looks unfinished on purpose. Making it pretty before the ride feels
-right is how you end up tuning to a nice-looking thing that plays badly.
+## Controls
+
+| | |
+| --- | --- |
+| Draw | press and drag |
+| Brush | click the strip, or `1`–`7` |
+| Erase | right-drag, or the eraser tool (`E`) — takes whole strokes |
+| Move the start flag | the flag tool (`F`) — the sled takes its angle from the line beneath it |
+| Pan | space-drag, middle-drag, or two fingers |
+| Zoom | wheel or pinch, `0.25×`–`4×` in 1/16 steps |
+| Play / pause | `Enter` |
+| Back to editing | `Esc`, or tap the page mid-run |
+| Undo / redo | `⌘Z` / `⇧⌘Z`, 100 deep, whole strokes |
+
+Drawing a boost line right-to-left boosts **backwards** — the impulse runs along
+the segment as drawn. That is a feature, and the toolbar says so.
 
 ## Running it
 
@@ -39,7 +55,7 @@ moment it is enabled the next push to `main` deploys to
 
 ```sh
 npm install
-npm run dev        # the tuning harness
+npm run dev        # the editor
 npm run verify     # the determinism gate — 12 checks
 npm test           # typecheck + verify
 npm run build      # typecheck + production build
@@ -62,9 +78,19 @@ src/sim/            the simulation — imports nothing outside itself
   index.ts          the public surface
 src/level/
   format.ts         encode / decode / share link
+  stroke.ts         strokes — the authoring form of a drawn line
   prng.ts           decoration PRNG — never touched by the sim
   fixtures.ts       the two fixture levels
-src/main.ts         phase 1 tuning harness
+src/render/         all render state; never written back to the sim
+  paper.ts          paper, grain, creases, ruled lines
+  strokes.ts        ink vs highlighter, and the wobble cache
+  parallax.ts       the conifers
+  camera.ts         pan, zoom, and the follow during a run
+  scene.ts          one frame, composed
+src/editor/
+  model.ts          strokes, undo/redo, erase, level derivation
+  toolbar.ts        the strip
+src/main.ts         input, gestures, the loop
 scripts/check-determinism.mjs
 docs/spec.md        the build spec
 ```
