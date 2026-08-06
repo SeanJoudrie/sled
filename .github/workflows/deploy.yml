@@ -2,9 +2,10 @@ name: deploy
 
 # Publishes the tuning harness to GitHub Pages.
 #
-# This needs Pages switched to "GitHub Actions" as its source, under
-# Settings → Pages. Until that is done this workflow will fail at the
-# configure-pages step — the repository setting cannot be flipped from here.
+# configure-pages runs with `enablement: true`, so the first run turns Pages on
+# and points it at Actions rather than failing with "Get Pages site failed".
+# If that step still 404s, Pages is disabled at the org or account level and
+# has to be switched on by hand under Settings → Pages.
 
 on:
   push:
@@ -46,6 +47,11 @@ jobs:
           BASE_PATH: /${{ github.event.repository.name }}/
 
       - uses: actions/configure-pages@v5
+        with:
+          # Create the Pages site on first run instead of requiring someone to
+          # flip the setting by hand before this workflow can ever pass.
+          enablement: true
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
