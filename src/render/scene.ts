@@ -81,7 +81,7 @@ export function drawScene(s: SceneInput): void {
 
   ctx.restore()
 
-  if (s.showEmptyHint) drawEmptyHint(ctx, s, r)
+  if (s.showEmptyHint) drawEmptyHint(ctx, s)
 }
 
 function drawStamps(ctx: CanvasRenderingContext2D, world: World, colour: Palette): void {
@@ -204,34 +204,57 @@ function drawRider(ctx: CanvasRenderingContext2D, rig: Rig, colour: Palette): vo
   ctx.restore()
 }
 
-function drawEmptyHint(
-  ctx: CanvasRenderingContext2D,
-  s: SceneInput,
-  r: { left: number; top: number },
-): void {
-  void r
-  const { ctx: c, colour } = { ctx, colour: s.colour }
+/**
+ * The empty page prompt.
+ *
+ * One arrow, pointing the way you should drag.
+ *
+ * The first version had two: a drawn arrow curving *up-left* toward the flag,
+ * and the text "draw a hill →" pointing right. Two arrows, opposite directions,
+ * neither indicating the downhill slope you actually want — at 390 px wide it
+ * read as an error rather than an invitation.
+ */
+function drawEmptyHint(ctx: CanvasRenderingContext2D, s: SceneInput): void {
+  const c = ctx
+  const colour = s.colour
   const sx = s.w / 2 + (s.startX - s.cam.x) * s.cam.zoom
   const sy = s.h / 2 + (s.startY - s.cam.y) * s.cam.zoom
 
+  // Length scales with the viewport so the gesture reads at any width.
+  const len = Math.min(150, s.w * 0.34)
+  const x0 = sx + 16
+  const y0 = sy + 20
+  const x1 = x0 + len
+  const y1 = y0 + len * 0.46
+
   c.save()
-  c.globalAlpha = 0.42
+  c.globalAlpha = 0.4
   c.fillStyle = colour('--sled-ink')
   c.strokeStyle = colour('--sled-ink')
-  c.lineWidth = 1.6
+  c.lineWidth = 1.8
   c.lineCap = 'round'
+  c.lineJoin = 'round'
+  c.setLineDash([7, 6])
+
+  // The stroke you would draw: a slope away from the flag, sagging like a hill.
+  c.beginPath()
+  c.moveTo(x0, y0)
+  c.quadraticCurveTo(x0 + len * 0.55, y0 + len * 0.1, x1, y1)
+  c.stroke()
+
+  // Arrowhead at the far end, aligned to the direction of travel.
+  c.setLineDash([])
+  const ang = Math.atan2(y1 - (y0 + len * 0.1), x1 - (x0 + len * 0.55))
+  const head = 11
+  c.beginPath()
+  c.moveTo(x1, y1)
+  c.lineTo(x1 - head * Math.cos(ang - 0.42), y1 - head * Math.sin(ang - 0.42))
+  c.moveTo(x1, y1)
+  c.lineTo(x1 - head * Math.cos(ang + 0.42), y1 - head * Math.sin(ang + 0.42))
+  c.stroke()
+
   c.font = '15px ui-monospace, monospace'
-  c.fillText('draw a hill →', sx + 34, sy + 46)
-  c.beginPath()
-  c.moveTo(sx + 26, sy + 30)
-  c.quadraticCurveTo(sx + 8, sy + 18, sx + 4, sy + 6)
-  c.stroke()
-  c.beginPath()
-  c.moveTo(sx + 4, sy + 4)
-  c.lineTo(sx + 12, sy + 14)
-  c.moveTo(sx + 4, sy + 4)
-  c.lineTo(sx - 2, sy + 16)
-  c.stroke()
+  c.fillText('draw a hill', x0 + 2, y0 - 10)
   c.restore()
 }
 

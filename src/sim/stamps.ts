@@ -106,7 +106,11 @@ export function applyPortals(rig: Rig, world: World): boolean {
         rig.portalCooldown = PORTAL_COOLDOWN
         return true
       }
-      // Portals are bidirectional; B->A is the inverse rotation.
+      // Portals are bidirectional by default; B->A is the inverse rotation.
+      // A one-way pair skips this half, which is the only way to draw a portal
+      // downstream on the same track without the rig ping-ponging until it
+      // tumbles.
+      if (q.oneWay) continue
       if (segCross(p.px, p.py, p.x, p.y, q.cx, q.cy, q.dx, q.dy) >= 0) {
         transport(pts, q.cx, q.cy, q.ax, q.ay, q.qc, -q.qs)
         rig.portalCooldown = PORTAL_COOLDOWN

@@ -19,7 +19,7 @@ You can draw a track and watch him ride it, and the level travels in the URL.
 | --- | --- |
 | ✅ **Sim core** | 5-point rig, 6 constraints, 7 brushes, 3 stamps, swept collision |
 | ✅ **Level format** | half-pixel integers → delta → zig-zag → varint → base64url |
-| ✅ **Determinism gate** | 12 checks, green |
+| ✅ **Determinism gate** | 14 checks, green |
 | ✅ **The page** | paper, grain, ruled lines, ink vs highlighter, parallax |
 | ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all seven brushes |
 | ✅ **Share link** | the level lives in the URL; no backend of any kind |
@@ -66,7 +66,7 @@ republishes it.
 ```sh
 npm install
 npm run dev        # the editor
-npm run verify     # the determinism gate — 12 checks
+npm run verify     # the determinism gate — 14 checks
 npm test           # typecheck + verify
 npm run build      # typecheck + production build
 ```
@@ -149,10 +149,20 @@ every tick.
 | 10 | the portal fixture actually transits, and every stamp is live |
 | 11 | no transcendentals anywhere in `sim/` |
 | 12 | `sim/` imports nothing from outside itself |
+| 13 | v1 level strings still decode, and mean the same thing |
+| 14 | the portal one-way flag actually blocks the return trip |
 
 Checks 9 and 10 exist because a fixture that stops covering a mechanic makes the
-other eleven checks pass on a track that no longer exercises it — which is how a
-gate goes quietly green over a mechanic nobody is testing any more.
+other checks pass on a track that no longer exercises it — which is how a gate
+goes quietly green over a mechanic nobody is testing any more.
+
+Check 13 holds a real level string produced before the format grew a field.
+Positional decoding means adding one is not backward compatible on its own, so
+this is what stops a format change silently orphaning every link already shared.
+
+Check 14 runs a portal pair in the configuration known to trap the rig, twice —
+bidirectional and one-way — and asserts they behave *differently*. A flag that
+is read but not obeyed is worse than no flag.
 
 ## Locked decisions
 

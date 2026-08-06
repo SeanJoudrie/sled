@@ -86,7 +86,7 @@ export function fixturePortal(): Level {
       L(BRUSH.INK, 900, 500, 2000, 700),
       L(BRUSH.INK, 2000, 700, 2600, 700),
     ],
-    p: [[400, 150, 400, 250, 1200, 480, 1207, 504]],
+    p: [[400, 150, 400, 250, 1200, 480, 1207, 504, 0]],
     g: [],
     // A vortex over the lower floor. The descent fixture covers arrow wind, and
     // without this the vortex branch is never executed by any fixture — which

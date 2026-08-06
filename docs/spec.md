@@ -391,7 +391,7 @@ type Level = {
   r: [body, face, hat, beard]                      // rider parts
   s: [x, y]                                        // start flag
   l: Array<[brush, x1, y1, x2, y2]>                // lines
-  p: Array<[ax, ay, bx, by, cx, cy, dx, dy]>       // portal pairs
+  p: Array<[ax, ay, bx, by, cx, cy, dx, dy, flags]>  // portal pairs
   g: Array<[x, y, strength]>                       // wells
   w: Array<[x1, y1, x2, y2, strength, kind]>       // wind
 }
@@ -400,6 +400,17 @@ type Level = {
 All coordinates are integers in **half-pixel units** (world × 2). 0.5 is exact
 in binary floating point, so a round-trip cannot drift. Nothing float-valued is
 ever serialised.
+
+**Portal `flags`:** bit 0 makes the pair one-way, A to B only. Bidirectional is
+the default and the interesting case, but two portals downstream on the same
+track trap the rig and a closed loop is a perpetual motion machine (§9.8, §9.9),
+so the escape hatch had to exist before level strings went into circulation.
+
+**The format is at v2.** v1 had no portal flags. Decoding is positional, so an
+added field is not backward compatible on its own — the version byte is what
+makes it safe. This build writes v2 and reads both; v1 portals decode as
+bidirectional, which is what they did when they were written. The gate holds a
+real v1 string and asserts it still decodes and still runs.
 
 Encoding: sort nothing (array order is load-bearing) → delta-encode consecutive
 coordinates, one running cursor per axis → zig-zag varint → base64url, no
@@ -430,7 +441,9 @@ CI proves the simulation cannot even import it.
 6. ⬜ Rider system + click-to-cycle, on placeholder parts.
 7. ⬜ The three stamps in the editor. Portals last — the only subtle maths.
    They already run and round-trip; there is just no UI to place one.
-8. ✅ Share link wired to the URL.
+8. ✅ Share link wired to the URL. A malformed link is **never** written over:
+   overwriting the hash destroys the only copy of the level someone was sent,
+   and a messenger truncating a long URL is exactly how that happens.
 9. ⬜ Hand-drawn parts replace the placeholders. Content only, zero code.
 
 **Open, awaiting a verdict on feel** — nobody has judged the ride yet:
