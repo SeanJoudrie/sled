@@ -10,6 +10,7 @@ import {
   ITERATIONS,
   POSTURE_K,
   POSTURE_REST_UP,
+  SPAWN_AHEAD,
   SPAWN_LIFT,
   SPAWN_SNAP_R2,
 } from './consts.ts'
@@ -78,10 +79,14 @@ export const CONSTRAINTS: readonly Constraint[] = [
  * Lay the rig out at the start flag.
  *
  * The flag keeps the position the player put it at, but takes its *orientation*
- * from the nearest line beneath it. Spawning flat onto a slope nose-plants
- * every time: the downhill runner touches first, stops dead against zero
- * restitution, and the tail rotates over the top of it. Adopting the tangent is
- * also simply what a player means by putting the flag there.
+ * from the nearest line beneath it, and the sled is placed a full sled-length
+ * along that tangent so it sits entirely ahead of the flag.
+ *
+ * Both halves are the same lesson. Spawning flat onto a slope nose-plants every
+ * time: the downhill runner touches first, stops dead against zero restitution,
+ * and the tail rotates over the top of it. Spawning *behind* the flag strands
+ * the tail off the end of the track whenever the flag is at the top of a hill —
+ * which is precisely where a person puts it.
  */
 export function spawn(world: World): Rig {
   let ux = 1
@@ -126,8 +131,10 @@ export function spawn(world: World): Rig {
   const nx = uy
   const ny = -ux
 
-  const ox = world.startX + nx * SPAWN_LIFT
-  const oy = world.startY + ny * SPAWN_LIFT
+  // Lifted clear of the line, and moved a sled's length along it so the whole
+  // rig sits ahead of the flag rather than trailing off the end of the track.
+  const ox = world.startX + nx * SPAWN_LIFT + ux * SPAWN_AHEAD
+  const oy = world.startY + ny * SPAWN_LIFT + uy * SPAWN_AHEAD
 
   const pts: Point[] = []
   for (let i = 0; i < POINT_COUNT; i++) {

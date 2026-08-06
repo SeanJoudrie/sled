@@ -104,15 +104,31 @@ function reseedParallax(): void {
   seedParallax(fnv1a(encodeLevel(currentLevel())))
 }
 
-let shareTimer = 0
-function scheduleShareSync(): void {
-  clearTimeout(shareTimer)
-  shareTimer = window.setTimeout(() => {
-    const encoded = encodeLevel(currentLevel())
+/**
+ * Whether the address bar can be written to at all.
+ *
+ * An embedded copy of this page can be on an opaque origin, where the browser
+ * refuses history writes outright. That is survivable — the level still exists
+ * and can still be encoded — but the share button must not then claim the link
+ * is in the address bar when nothing was ever put there.
+ */
+let hashWritable = true
+
+function writeHash(encoded: string): void {
+  if (!hashWritable) return
+  try {
     // replaceState, not location.hash: a new history entry per stroke would
     // turn the browser Back button into a broken undo.
     history.replaceState(null, '', `#l=${encoded}`)
-  }, 350)
+  } catch {
+    hashWritable = false
+  }
+}
+
+let shareTimer = 0
+function scheduleShareSync(): void {
+  clearTimeout(shareTimer)
+  shareTimer = window.setTimeout(() => writeHash(encodeLevel(currentLevel())), 350)
 }
 
 function loadLevel(level: Level, recentre: boolean): void {
@@ -435,14 +451,17 @@ const toolbar = buildToolbar(railEl, {
 async function copyLink(): Promise<void> {
   const encoded = encodeLevel(currentLevel())
   const url = `${location.origin}${location.pathname}#l=${encoded}`
-  history.replaceState(null, '', `#l=${encoded}`)
+  writeHash(encoded)
   try {
     await navigator.clipboard.writeText(url)
     toast(`Link copied · ${encoded.length} characters`)
+    return
   } catch {
-    // Clipboard access can be refused; the URL bar already holds the level.
-    toast('Link is in the address bar')
+    // Clipboard access can be refused, and on an opaque origin so can the
+    // address bar. Say which of those actually happened rather than pointing
+    // at a URL that was never written.
   }
+  toast(hashWritable ? 'Link is in the address bar' : 'Copy blocked here — open the page directly')
 }
 
 // ── feedback ─────────────────────────────────────────────────────────────────
