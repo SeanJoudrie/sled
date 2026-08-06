@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sled · phase 1 tuning harness</title>
+    <meta name="description" content="Draw a line. He rides it. Deterministic Verlet physics, bit-identical on every device." />
+    <!-- Inline, so the page makes no request the smoke test would see as a console error. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F6F2E8'/%3E%3Cpath d='M4 22 L28 22 M8 22 L12 14 L20 14' stroke='%231E2430' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      /* It is a sheet of paper. A dark notebook page is not a thing. */
+      :root {
+        color-scheme: light;
+        --sled-paper: #f6f2e8;
+        --sled-rule: #c7d2e0;
+        --sled-margin-rule: #e0a79e;
+        --sled-ink: #1e2430;
+        --sled-pencil: #a9a395;
+        --sled-red: #c4362e;
+        --sled-blue: #2f62b8;
+        --sled-yellow: #f2c744;
+        --sled-cyan: #7fd4e8;
+        --sled-brown: #8a6a3f;
+        --sled-green: #6fbf73;
+        --sled-pink: #e87fa8;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--sled-paper);
+        color: var(--sled-ink);
+        font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        overflow: hidden;
+      }
+      canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+      .hud {
+        position: fixed; top: 0; left: 0; right: 0;
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        padding: 10px 12px;
+        background: color-mix(in srgb, var(--sled-paper) 88%, transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--sled-ink) 12%, transparent);
+      }
+      .hud strong { font-weight: 700; letter-spacing: 0.02em; }
+      .hud .sep { flex: 1; }
+      button, select {
+        font: inherit; color: var(--sled-ink);
+        background: transparent;
+        border: 1.5px solid var(--sled-ink);
+        border-radius: 3px; padding: 4px 10px; cursor: pointer;
+        min-height: 32px;
+      }
+      button:focus-visible, select:focus-visible {
+        outline: 2px solid var(--sled-ink); outline-offset: 2px;
+      }
+      .stat { opacity: 0.75; font-variant-numeric: tabular-nums; }
+      .note {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        padding: 8px 12px; font-size: 12px; opacity: 0.6;
+        pointer-events: none;
+      }
+      @media (max-width: 640px) { .hud { font-size: 12px; } .note { display: none; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div class="hud">
+      <strong>Sled</strong>
+      <select id="fixture" aria-label="Fixture level">
+        <option value="descent">descent · every brush</option>
+        <option value="portal">portal · rotating pair</option>
+        <option value="custom">custom · from link</option>
+      </select>
+      <button id="play" type="button">Play</button>
+      <button id="reset" type="button">Reset</button>
+      <span class="sep"></span>
+      <span class="stat" id="stat" role="status" aria-live="polite"></span>
+    </div>
+    <p class="note">
+      Phase 1 tuning harness — bare lines, no paper, no editor. Enter plays, Esc resets.
+    </p>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

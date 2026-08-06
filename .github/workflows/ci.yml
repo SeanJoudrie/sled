@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The determinism gate imports src/sim/*.ts directly using Node's
+          # type stripping, which needs 22.6+.
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Determinism gate
+        run: npm run verify
+
+      - name: Build
+        run: npm run build
