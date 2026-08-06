@@ -15,13 +15,13 @@ import {
 } from './sim/index.ts'
 import type { BrushId, Level, Rig, World } from './sim/index.ts'
 import type { Stroke } from './level/stroke.ts'
-import { encodeLevel, tryLevelFromHash } from './level/format.ts'
+import { encodeLevel, readHash } from './level/format.ts'
 import { fnv1a } from './level/prng.ts'
 import { fixtureDescent } from './level/fixtures.ts'
 import { Model } from './editor/model.ts'
 import { buildControls } from './editor/toolbar.ts'
 import type { Action, ToolId } from './editor/toolbar.ts'
-import { makeCamera, follow, screenToWorld, settle, zoomAt } from './render/camera.ts'
+import { makeCamera, follow, quantiseZoom, screenToWorld, settle, zoomAt } from './render/camera.ts'
 import { drawScene } from './render/scene.ts'
 import { initGrain } from './render/paper.ts'
 import { seedParallax } from './render/parallax.ts'
@@ -121,17 +121,71 @@ function scheduleShareSync(): void {
   shareTimer = window.setTimeout(() => writeHash(encodeLevel(currentLevel())), 350)
 }
 
-function loadLevel(level: Level, recentre: boolean): void {
-  model.load(level)
-  stopRun()
-  if (recentre) {
+/**
+ * Frame the whole level.
+ *
+ * Loading at zoom 1 centred on the flag showed a *fragment* of the track on a
+ * phone — a line leaving the right edge with no way to tell how long the hill
+ * was, or that there was a hill. Fitting the content is the difference between
+ * a first screen that explains itself and one that looks broken.
+ *
+ * Never zooms past 1: "fit" means see all of it, not magnify a short track
+ * until the paper grain is the size of gravel.
+ */
+/**
+ * Below this, "fitting" stops being useful.
+ *
+ * The example track is 2200 px wide. Fitting all of it on a 390 px phone works
+ * out at zoom 0.125, which makes the sled three pixels tall and squeezes the
+ * 28 px ruling into corduroy. Seeing the whole level is worth less than being
+ * able to see anything in it.
+ */
+const MIN_FIT_ZOOM = 0.5
+
+function fitCamera(): void {
+  const b = model.contentBounds()
+  const w = window.innerWidth
+  const h = window.innerHeight
+
+  const cw = b.maxX - b.minX
+  const ch = b.maxY - b.minY
+  if (cw < 1 && ch < 1) {
     cam.x = model.startX
     cam.y = model.startY
     cam.zoom = 1
     settle(cam)
+    return
   }
+
+  // The corner clusters overlay the canvas, so the usable area is smaller than
+  // the viewport. Proportional, or a phone loses half its width to padding.
+  const padX = Math.min(80, w * 0.12)
+  const padY = Math.min(96, h * 0.14)
+  const availW = Math.max(140, w - padX * 2)
+  const availH = Math.max(140, h - padY * 2)
+  const fit = Math.min(availW / Math.max(cw, 1), availH / Math.max(ch, 1))
+
+  if (fit >= MIN_FIT_ZOOM) {
+    // Short enough to show whole. Centre on the content.
+    cam.zoom = quantiseZoom(Math.min(fit, 1))
+    cam.x = (b.minX + b.maxX) / 2
+    cam.y = (b.minY + b.maxY) / 2
+  } else {
+    // Too long to frame at a readable size, so frame the *start* instead: the
+    // flag sits left of centre and high, leaving the run ahead on screen.
+    cam.zoom = MIN_FIT_ZOOM
+    cam.x = model.startX + (w * 0.22) / cam.zoom
+    cam.y = model.startY + (h * 0.12) / cam.zoom
+  }
+  settle(cam)
+}
+
+function loadLevel(level: Level, recentre: boolean, syncHash = true): void {
+  model.load(level)
+  stopRun()
+  if (recentre) fitCamera()
   reseedParallax()
-  scheduleShareSync()
+  if (syncHash) scheduleShareSync()
   sync()
 }
 
@@ -577,9 +631,20 @@ initGrain(ctx, colour('--sled-grain'))
 // A level in the URL wins. Failing that, the example track — an empty page with
 // no way to know what any of this does is a worse first five seconds than a
 // hill you can immediately press play on and then draw over.
-const fromUrl = tryLevelFromHash(location.hash)
-loadLevel(fromUrl ?? fixtureDescent(), true)
-if (!fromUrl) announce('Example track loaded. Draw over it, or clear the page.')
+const incoming = readHash(location.hash)
+if (incoming.kind === 'ok') {
+  loadLevel(incoming.level, true)
+} else if (incoming.kind === 'bad') {
+  // Load something usable, but leave the broken hash in the address bar: it is
+  // the only copy of whatever they were sent, and syncing over it would destroy
+  // it. The next edit takes the bar over naturally.
+  loadLevel(fixtureDescent(), true, false)
+  toast("That link looks damaged — showing the example instead")
+  announce('That share link could not be read. The example track is loaded instead.')
+} else {
+  loadLevel(fixtureDescent(), true)
+  announce('Example track loaded. Draw over it, or clear the page.')
+}
 setCursorClass()
 
 requestAnimationFrame(frame)

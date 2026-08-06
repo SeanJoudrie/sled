@@ -135,14 +135,24 @@ export function drawRules(
   // into stripes when you zoom in and vanish when you zoom out.
   ctx.lineWidth = 1 / zoom
 
-  ctx.strokeStyle = rule
-  ctx.beginPath()
-  const first = Math.floor(top / RULE_SPACING) * RULE_SPACING
-  for (let y = first; y <= bottom; y += RULE_SPACING) {
-    ctx.moveTo(left, y)
-    ctx.lineTo(right, y)
+  // Zoomed out far enough, 28 px rules land a few pixels apart and the page
+  // stops reading as ruled paper and starts reading as corduroy. Fade them out
+  // before that happens rather than letting them moiré.
+  const spacing = RULE_SPACING * zoom
+  const ruleAlpha = spacing >= 17 ? 1 : Math.max(0, (spacing - 7) / 10)
+
+  if (ruleAlpha > 0.01) {
+    ctx.globalAlpha = ruleAlpha
+    ctx.strokeStyle = rule
+    ctx.beginPath()
+    const first = Math.floor(top / RULE_SPACING) * RULE_SPACING
+    for (let y = first; y <= bottom; y += RULE_SPACING) {
+      ctx.moveTo(left, y)
+      ctx.lineTo(right, y)
+    }
+    ctx.stroke()
+    ctx.globalAlpha = 1
   }
-  ctx.stroke()
 
   if (MARGIN_RULE_X >= left && MARGIN_RULE_X <= right) {
     ctx.strokeStyle = marginRule

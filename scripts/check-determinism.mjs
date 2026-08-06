@@ -272,6 +272,71 @@ check(12, 'static · sim/ imports nothing from outside itself', () => {
   return hits.length === 0 ? true : hits.join('; ')
 })
 
+check(13, 'wire · v1 level strings still decode', () => {
+  // A real string produced by this project before the portal flags field
+  // existed. Positional decoding means a new field is not backward compatible
+  // on its own, so this is the check that stops a format change quietly
+  // orphaning every link anyone has already shared.
+  const V1 =
+    'AQIEBgjAAmAaAL8CX6AG8AEAAACgBsACAgAA6AfoAgAAANgEmAIEAACgBqABAAAA2ASgAQYAAKAGoAEAAADoB_ABAAAA4BIACs8PnwHADAAMnzjvEJAD7wEM0A_gA8ACvwIIkCbQDwCQAwACzyjvC7AJArAJsAmQAwAoAA'
+  const lvl = decodeLevel(V1)
+  const notes = []
+  if (lvl.l.length !== 13) notes.push(`expected 13 lines, got ${lvl.l.length}`)
+  if (lvl.g.length !== 1) notes.push(`expected 1 well, got ${lvl.g.length}`)
+  if (lvl.w.length !== 1) notes.push(`expected 1 wind, got ${lvl.w.length}`)
+  if (lvl.s[0] !== 80 || lvl.s[1] !== 24) notes.push(`start moved: ${JSON.stringify(lvl.s)}`)
+  // Upgrading it to the current version must not change what it means.
+  const round = decodeLevel(encodeLevel(lvl))
+  if (JSON.stringify(round) !== JSON.stringify(lvl)) notes.push('v1 -> v2 round trip changed the level')
+  // And it must still run.
+  const r = run(lvl, 400)
+  if (r.ticks < 100) notes.push(`v1 level only ran ${r.ticks} ticks`)
+  return notes.length === 0 ? true : notes.join('; ')
+})
+
+check(14, 'portals · the one-way flag actually blocks the return trip', () => {
+  // Portal B is deliberately long enough that the rig lands on top of it — the
+  // configuration that produced the inescapable loop in spec §9.8. Bidirectional
+  // it must ping-pong; one-way it must not. If both behave the same the flag is
+  // decorative, which is worse than not having it.
+  const build = (flags) => ({
+    v: 1,
+    r: [0, 0, 0, 0],
+    s: [80, 40],
+    l: [
+      [BRUSH.INK, 0, 0, 600, 300],
+      [BRUSH.INK, 900, 500, 2000, 700],
+      [BRUSH.INK, 2000, 700, 2600, 700],
+    ],
+    p: [[400, 150, 400, 250, 1200, 480, 1228, 576, flags]],
+    g: [],
+    w: [],
+  })
+
+  const transits = (level) => {
+    const world = buildWorld(level)
+    const rig = spawn(world)
+    let n = 0
+    for (let t = 0; t < 2000; t++) {
+      const bx = rig.pts[0].x
+      const by = rig.pts[0].y
+      step(rig, world)
+      const dx = rig.pts[0].x - bx
+      const dy = rig.pts[0].y - by
+      if (Math.sqrt(dx * dx + dy * dy) > 100) n++
+      if (rig.state !== 'running') break
+    }
+    return n
+  }
+
+  const both = transits(build(0))
+  const one = transits(build(1))
+  const notes = []
+  if (both < 2) notes.push(`bidirectional pair should ping-pong, saw ${both} transit(s)`)
+  if (one !== 1) notes.push(`one-way pair should transit exactly once, saw ${one}`)
+  return notes.length === 0 ? true : notes.join('; ')
+})
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 /**

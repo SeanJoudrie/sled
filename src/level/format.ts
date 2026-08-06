@@ -15,7 +15,18 @@
 import type { BrushId, Level, WindKind } from '../sim/index.ts'
 import { asBrushId } from '../sim/index.ts'
 
-export const FORMAT_VERSION = 1
+/**
+ * The version written by this build.
+ *
+ * v2 added a flags field to each portal. Positional decoding means an extra
+ * field is not backward compatible on its own — a v1 reader would take the next
+ * portal's x as the flags — so the version byte earns its keep here: v1 strings
+ * still decode, with portals implicitly bidirectional.
+ */
+export const FORMAT_VERSION = 2
+
+/** Every version this build can read. */
+export const SUPPORTED_VERSIONS = [1, 2] as const
 
 /** Wind strengths ride the wire as integer thousandths: a float zig-zags to zero. */
 const WIND_STRENGTH_SCALE = 1000
@@ -188,6 +199,8 @@ export function encodeLevel(level: Level): string {
   for (const p of level.p) {
     px(p[0]); py(p[1]); px(p[2]); py(p[3])
     px(p[4]); py(p[5]); px(p[6]); py(p[7])
+    // Flags are not a coordinate — they must not touch the delta cursors.
+    w.int(Math.trunc(p[8] ?? 0))
   }
 
   w.int(level.g.length)
@@ -217,7 +230,7 @@ function count(n: number): number {
 export function decodeLevel(s: string): Level {
   const r = new Reader(fromB64url(s))
   const version = r.raw()
-  if (version !== FORMAT_VERSION) {
+  if (!(SUPPORTED_VERSIONS as readonly number[]).includes(version)) {
     throw new Error(`level: unsupported version ${version}`)
   }
 
@@ -244,7 +257,11 @@ export function decodeLevel(s: string): Level {
 
   const p: Level['p'] = []
   for (let i = count(r.int()); i > 0; i--) {
-    p.push([px(), py(), px(), py(), px(), py(), px(), py()])
+    const coords = [px(), py(), px(), py(), px(), py(), px(), py()] as const
+    // v1 had no flags field; those portals are bidirectional, which is what
+    // they did when they were written.
+    const flags = version >= 2 ? Math.trunc(r.int()) : 0
+    p.push([...coords, flags] as Level['p'][number])
   }
 
   const g: Level['g'] = []
@@ -291,11 +308,33 @@ export function levelFromHash(hash: string): Level | null {
   return decodeLevel(encoded)
 }
 
+/**
+ * What a URL hash turned out to contain.
+ *
+ * The three cases have to be told apart. "No link" means show the example and
+ * take over the address bar. "Broken link" must *not* do that: overwriting the
+ * hash destroys the only copy of a level someone was trying to open, and a
+ * messenger truncating a long URL is exactly how that happens.
+ */
+export type HashResult =
+  | { kind: 'none' }
+  | { kind: 'ok'; level: Level }
+  | { kind: 'bad'; reason: string }
+
+export function readHash(hash: string): HashResult {
+  const i = hash.indexOf(HASH_KEY)
+  if (i < 0) return { kind: 'none' }
+  const encoded = hash.slice(i + HASH_KEY.length)
+  if (encoded.length === 0) return { kind: 'none' }
+  try {
+    return { kind: 'ok', level: decodeLevel(encoded) }
+  } catch (err) {
+    return { kind: 'bad', reason: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 /** As above, but a malformed link yields null instead of throwing. */
 export function tryLevelFromHash(hash: string): Level | null {
-  try {
-    return levelFromHash(hash)
-  } catch {
-    return null
-  }
+  const r = readHash(hash)
+  return r.kind === 'ok' ? r.level : null
 }

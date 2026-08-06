@@ -7,7 +7,7 @@
  * have to guard against a zero-length segment producing NaN.
  */
 
-import { BRUSHES, BRUSH_COUNT, WIND } from './types.ts'
+import { BRUSHES, BRUSH_COUNT, PORTAL_ONE_WAY, WIND } from './types.ts'
 import type { Bounds, BrushId, Level, Portal, Segment, Well, Wind, World } from './types.ts'
 import { EPS_LEN, OFF_TRACK_MARGIN } from './consts.ts'
 
@@ -62,6 +62,7 @@ export function buildWorld(level: Level): World {
       ax, ay, bx, by, cx, cy, dx, dy,
       qc: ubx * uax + uby * uay,
       qs: uby * uax - ubx * uay,
+      oneWay: (Math.trunc(finite(q[8])) & PORTAL_ONE_WAY) !== 0,
     })
   }
 

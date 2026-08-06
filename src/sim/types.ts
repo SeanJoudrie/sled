@@ -88,8 +88,16 @@ export type Level = {
   s: [number, number]
   /** Lines: brush, then both endpoints. */
   l: Array<[BrushId, number, number, number, number]>
-  /** Portal pairs: segment A (ax, ay, bx, by), then segment B (cx, cy, dx, dy). */
-  p: Array<[number, number, number, number, number, number, number, number]>
+  /**
+   * Portal pairs: segment A (ax, ay, bx, by), segment B (cx, cy, dx, dy), flags.
+   *
+   * `flags & 1` makes the pair one-way, A to B only. Bidirectional portals are
+   * the default and the interesting case, but two of them on the same track
+   * trap the rig forever and a closed loop is a perpetual motion machine — so
+   * the escape hatch has to exist in the wire format *before* level strings are
+   * shared, or it can never be added without breaking them.
+   */
+  p: Array<[number, number, number, number, number, number, number, number, number]>
   /** Gravity wells: x, y, strength. */
   g: Array<[number, number, number]>
   /** Wind: both endpoints, strength, kind. Vortex uses the segment length as its radius. */
@@ -119,7 +127,12 @@ export type Portal = {
   /** Rotation from A's frame to B's frame, as a unit complex number. No trigonometry. */
   readonly qc: number
   readonly qs: number
+  /** One-way: entering B does nothing. Stops a downstream pair trapping the rig. */
+  readonly oneWay: boolean
 }
+
+/** Portal flag bits, as stored on the wire. */
+export const PORTAL_ONE_WAY = 1
 
 export type Well = {
   readonly x: number

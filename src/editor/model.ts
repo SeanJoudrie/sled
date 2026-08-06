@@ -209,6 +209,35 @@ export class Model {
 
   // ── the rest ───────────────────────────────────────────────────────────────
 
+  /**
+   * Tight bounds of everything on the page, including the start flag.
+   *
+   * Deliberately *not* World.bounds, which is padded by OFF_TRACK_MARGIN for
+   * the off-track test — framing the camera on that would show 2000 px of blank
+   * paper in every direction.
+   */
+  contentBounds(): { minX: number; minY: number; maxX: number; maxY: number } {
+    let minX = this.startX
+    let minY = this.startY
+    let maxX = this.startX
+    let maxY = this.startY
+    const put = (x: number, y: number) => {
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+    for (const s of this.strokes) for (const [x, y] of s.pts) put(x, y)
+    for (const p of this.portals) {
+      put(p[0], p[1]); put(p[2], p[3]); put(p[4], p[5]); put(p[6], p[7])
+    }
+    for (const g of this.wells) put(g[0], g[1])
+    for (const w of this.winds) {
+      put(w[0], w[1]); put(w[2], w[3])
+    }
+    return { minX, minY, maxX, maxY }
+  }
+
   setStart(x: number, y: number): void {
     this.snapshot()
     this.startX = x
