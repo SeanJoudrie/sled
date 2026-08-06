@@ -68,6 +68,13 @@ export function fixtureDescent(): Level {
  * The angle is deliberately neither zero nor a right angle: a pure translation
  * would pass with qs stuck at 0 and prove nothing about the complex multiply,
  * which is the only subtle arithmetic in the whole simulation.
+ *
+ * B is deliberately **short**. The transform puts him the same distance along B
+ * as he was along A, and he crosses A about 48 px from its start — so a B any
+ * longer than that materialises him on top of itself, he re-enters as soon as
+ * the 3-tick cooldown lapses, and the pair becomes the inescapable loop
+ * described in §9.8 of the spec. B keeps its direction (7, 24) exactly, so the
+ * rotation is unchanged; only its length moves out of his way.
  */
 export function fixturePortal(): Level {
   return {
@@ -79,7 +86,7 @@ export function fixturePortal(): Level {
       L(BRUSH.INK, 900, 500, 2000, 700),
       L(BRUSH.INK, 2000, 700, 2600, 700),
     ],
-    p: [[400, 150, 400, 250, 1200, 480, 1228, 576]],
+    p: [[400, 150, 400, 250, 1200, 480, 1207, 504]],
     g: [],
     // A vortex over the lower floor. The descent fixture covers arrow wind, and
     // without this the vortex branch is never executed by any fixture — which

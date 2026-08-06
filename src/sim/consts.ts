@@ -84,3 +84,16 @@ export const SPAWN_SNAP_R2 = SPAWN_SNAP_R * SPAWN_SNAP_R
 
 /** Clearance between the sled runners and the line they spawn on, px. */
 export const SPAWN_LIFT = CONTACT_R
+
+/**
+ * How far along the tangent to place the sled, measured from the flag, px.
+ *
+ * Equal to the nose–tail rest length, which puts the **tail** on the flag and
+ * the whole sled ahead of it. Spawning the sled centred on the flag — or worse,
+ * behind it — means a flag dropped at the top of a hill leaves the tail hanging
+ * off the end of the line with nothing under it, and the rig pivots about the
+ * nose and drives the head into the ground before it has moved a pixel.
+ *
+ * The top of the hill is exactly where a person puts the flag.
+ */
+export const SPAWN_AHEAD = 20.0
