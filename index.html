@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Sled — draw a line, he rides it</title>
     <meta name="description" content="Draw a line. He rides it. Deterministic Verlet physics on ruled notebook paper." />
-    <!-- Inline, so the page makes no request the smoke test would see as an error. -->
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23F6F2E8'/%3E%3Cpath d='M4 22 L28 22 M8 22 L12 14 L20 14' stroke='%231E2430' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
@@ -29,8 +28,11 @@
         --sled-green: #6fbf73;
         --sled-pink: #e87fa8;
 
-        --tape: #e8dfc4;
-        --strip: #fffdf6;
+        --chip: #fffdf6;
+        --edge: rgba(30, 36, 48, 0.16);
+        --gap: 10px;
+        --pad: max(12px, env(safe-area-inset-left));
+        --pad-b: max(12px, env(safe-area-inset-bottom));
       }
 
       * { box-sizing: border-box; }
@@ -44,137 +46,143 @@
       }
 
       #stage {
-        position: fixed;
-        inset: 0;
-        width: 100%;
-        height: 100%;
+        position: fixed; inset: 0;
+        width: 100%; height: 100%;
         display: block;
         touch-action: none;
-        cursor: crosshair;
+        cursor: grab;
       }
-      #stage.panning { cursor: grabbing; }
+      /* The cursor states the mode, so there is never any doubt which one a
+         drag is about to do. */
+      #stage.drawing { cursor: crosshair; }
       #stage.erasing { cursor: cell; }
+      #stage.flagging { cursor: copy; }
+      #stage.panning { cursor: grabbing; }
 
-      /* The toolbar is a paper strip taped to the page. */
-      .rail {
-        position: fixed;
-        z-index: 2;
-        background: var(--strip);
-        border: 1px solid rgba(30, 36, 48, 0.14);
-        border-radius: 2px;
-        box-shadow: 0 1px 0 rgba(30, 36, 48, 0.05), 0 6px 18px rgba(30, 36, 48, 0.07);
-        padding: 8px 6px;
-      }
-      .rail-list { display: flex; gap: 2px; }
-      /* Two bits of tape, deliberately not quite square to the strip. */
-      .rail::before, .rail::after {
-        content: "";
-        position: absolute;
-        width: 46px;
-        height: 17px;
-        background: var(--tape);
-        opacity: 0.75;
-        box-shadow: 0 1px 2px rgba(30, 36, 48, 0.08);
-      }
+      /* ── control clusters, one per corner ─────────────────────────────── */
+      .corner { position: fixed; z-index: 3; display: flex; gap: var(--gap); }
+      .corner.bl { left: var(--pad); bottom: var(--pad-b); align-items: flex-end; }
+      .corner.br { right: var(--pad); bottom: var(--pad-b); align-items: flex-end; flex-direction: column-reverse; }
+      .corner.tl { left: var(--pad); top: max(12px, env(safe-area-inset-top)); }
 
-      /* Wide: a vertical strip down the left edge. */
-      @media (min-width: 720px) {
-        .rail {
-          top: 50%;
-          left: 14px;
-          transform: translateY(-50%);
-          width: 132px;
-          max-height: calc(100vh - 28px);
-        }
-        .rail-list {
-          flex-direction: column;
-          max-height: calc(100vh - 44px);
-          overflow-y: auto;
-        }
-        .rail::before { top: -8px; left: 22px; transform: rotate(-3.5deg); }
-        .rail::after { bottom: -8px; right: 20px; transform: rotate(2.5deg); }
-      }
-
-      /* Narrow: a horizontal strip along the bottom, scrolled sideways. Every
-         entry keeps its name — the palette must never rely on colour alone. */
-      @media (max-width: 719px) {
-        .rail {
-          left: 8px;
-          right: 8px;
-          bottom: 8px;
-        }
-        .rail-list {
-          flex-direction: row;
-          overflow-x: auto;
-          align-items: stretch;
-        }
-        .rail::before { top: -8px; left: 26px; transform: rotate(-3deg); }
-        .rail::after { top: -8px; right: 26px; transform: rotate(2deg); }
-        .rail .divider { border-top: 0; border-left: 1px dashed rgba(30, 36, 48, 0.2); margin: 2px 4px; }
-        .tool { flex: 0 0 auto; }
-      }
-
-      .tool {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 44px;
-        padding: 4px 8px;
-        border: 1.5px solid transparent;
-        border-radius: 3px;
-        background: transparent;
-        color: inherit;
-        font: inherit;
+      .btn {
+        width: 52px; height: 52px;
+        flex: 0 0 auto;
+        display: grid; place-items: center;
+        padding: 0;
+        border: 1.5px solid var(--edge);
+        border-radius: 50%;
+        background: var(--chip);
+        color: var(--sled-ink);
         cursor: pointer;
-        white-space: nowrap;
+        box-shadow: 0 2px 5px rgba(30, 36, 48, 0.09);
+        transition: transform 90ms ease, background 120ms ease, border-color 120ms ease;
       }
-      .tool:hover { background: rgba(30, 36, 48, 0.05); }
-      .tool[aria-pressed="true"] { border-color: var(--sled-ink); background: rgba(30, 36, 48, 0.06); }
-      .tool:disabled { opacity: 0.32; cursor: default; }
-      .tool:focus-visible { outline: 2px solid var(--sled-ink); outline-offset: 2px; }
+      .btn:active { transform: scale(0.94); }
+      .btn:hover { border-color: rgba(30, 36, 48, 0.4); }
+      .btn:focus-visible { outline: 2px solid var(--sled-ink); outline-offset: 3px; }
+      .btn:disabled { opacity: 0.3; cursor: default; box-shadow: none; }
+      .btn svg { width: 24px; height: 24px; }
 
-      /* The swatch is drawn at the brush's real stroke class: ink is a thin
-         opaque line, highlighter a fat translucent band. */
-      .swatch { flex: 0 0 auto; width: 22px; height: 20px; position: relative; }
-      .swatch::after {
-        content: "";
-        position: absolute;
-        left: 0; right: 0; top: 50%;
+      /* Pressed is a filled chip, not just a ring — on a phone, in sunlight, a
+         1px border change is not a state you can read at a glance. */
+      .btn[aria-pressed="true"] {
+        background: var(--sled-ink);
+        border-color: var(--sled-ink);
+        color: var(--sled-paper);
+      }
+
+      .btn.primary { width: 64px; height: 64px; }
+      .btn.primary svg { width: 30px; height: 30px; }
+      .btn.small { width: 44px; height: 44px; }
+      .btn.small svg { width: 20px; height: 20px; }
+
+      /* The material button shows the current pen rather than a generic icon. */
+      .btn.material { position: relative; overflow: hidden; }
+      .material .ink-swatch,
+      .material .hl-swatch {
+        position: absolute; left: 9px; right: 9px; top: 50%;
         transform: translateY(-50%);
-        background: var(--c);
+        background: var(--c, var(--sled-ink));
+        pointer-events: none;
       }
-      .swatch.ink::after { height: 2.4px; border-radius: 2px; }
-      .swatch.highlighter::after { height: 11px; opacity: 0.55; }
-      .swatch.glyph::after { content: none; }
-      .swatch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .material .ink-swatch { height: 3px; border-radius: 2px; }
+      .material .hl-swatch { height: 13px; opacity: 0.6; }
 
-      .hud {
-        position: fixed;
-        top: 10px; right: 12px;
-        z-index: 2;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        padding: 7px 11px;
-        background: rgba(246, 242, 232, 0.82);
-        border: 1px solid rgba(30, 36, 48, 0.12);
-        border-radius: 3px;
-        font-variant-numeric: tabular-nums;
+      @media (prefers-reduced-motion: reduce) {
+        .btn { transition: none; }
+        .btn:active { transform: none; }
       }
-      .hud .state { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; opacity: 0.65; }
+
+      /* ── the material sheet ───────────────────────────────────────────── */
+      .sheet {
+        position: fixed; z-index: 4;
+        left: var(--pad);
+        bottom: calc(var(--pad-b) + 62px);
+        width: min(268px, calc(100vw - var(--pad) * 2));
+        padding: 6px;
+        background: var(--chip);
+        border: 1.5px solid var(--edge);
+        border-radius: 10px;
+        box-shadow: 0 8px 26px rgba(30, 36, 48, 0.16);
+        display: flex; flex-direction: column; gap: 2px;
+      }
+      .sheet[hidden] { display: none; }
+      .sheet.right { left: auto; right: var(--pad); }
+
+      .row {
+        display: flex; align-items: center; gap: 10px;
+        min-height: 44px;
+        width: 100%;
+        padding: 4px 10px;
+        border: 1.5px solid transparent;
+        border-radius: 7px;
+        background: transparent;
+        color: inherit; font: inherit; text-align: left;
+        cursor: pointer;
+      }
+      .row:hover { background: rgba(30, 36, 48, 0.055); }
+      .row[aria-pressed="true"] { border-color: var(--sled-ink); background: rgba(30, 36, 48, 0.06); }
+      .row:focus-visible { outline: 2px solid var(--sled-ink); outline-offset: -2px; }
+      .row .name { flex: 1 1 auto; }
+      .row .note { opacity: 0.5; font-size: 11px; }
+
+      /* Swatches are drawn at the brush's real stroke class: ink is a thin
+         opaque line, highlighter a fat translucent band. Never colour alone. */
+      .sw { flex: 0 0 auto; width: 26px; height: 20px; position: relative; }
+      .sw::after {
+        content: ""; position: absolute; left: 0; right: 0; top: 50%;
+        transform: translateY(-50%); background: var(--c);
+      }
+      .sw.ink::after { height: 3px; border-radius: 2px; }
+      .sw.highlighter::after { height: 13px; opacity: 0.55; }
+      .sw.glyph::after { content: none; }
+      .sw svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+      /* ── readout ──────────────────────────────────────────────────────── */
+      .hud {
+        position: fixed; z-index: 3;
+        right: var(--pad); top: max(12px, env(safe-area-inset-top));
+        display: flex; gap: 9px; align-items: center;
+        padding: 8px 11px;
+        background: rgba(246, 242, 232, 0.85);
+        border: 1px solid var(--edge);
+        border-radius: 7px;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+      }
+      .hud .state { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; opacity: 0.6; }
       .hud .state[data-state="crashed"], .hud .state[data-state="gone"] { color: var(--sled-red); opacity: 1; }
+      @media (max-width: 460px) { .hud .speed { display: none; } }
 
       .toast {
-        position: fixed;
-        left: 50%; top: 14px;
+        position: fixed; left: 50%; top: 14px;
         transform: translateX(-50%);
-        z-index: 3;
-        padding: 8px 14px;
-        background: var(--sled-ink);
-        color: var(--sled-paper);
-        border-radius: 3px;
-        opacity: 0;
-        pointer-events: none;
+        z-index: 5;
+        padding: 9px 15px;
+        background: var(--sled-ink); color: var(--sled-paper);
+        border-radius: 6px;
+        opacity: 0; pointer-events: none;
         transition: opacity 180ms ease;
       }
       .toast.show { opacity: 1; }
@@ -191,12 +199,16 @@
     <canvas id="stage"></canvas>
 
     <div class="hud">
-      <span id="tick">tick 0</span>
-      <span id="speed">0.00 px/tick</span>
-      <span class="state" id="state" data-state="edit">editing</span>
+      <span id="tick">0</span>
+      <span class="speed" id="speed">0.00 px/tick</span>
+      <span class="state" id="state" data-state="edit">draw</span>
     </div>
 
-    <nav class="rail" id="rail" aria-label="Tools"></nav>
+    <div class="corner tl" id="corner-tl"></div>
+    <div class="corner bl" id="corner-bl"></div>
+    <div class="corner br" id="corner-br"></div>
+
+    <div class="sheet" id="sheet" hidden></div>
 
     <div class="toast" id="toast" role="status"></div>
     <p class="sr" id="live" role="status" aria-live="polite"></p>

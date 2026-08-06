@@ -100,15 +100,29 @@ reads correctly.
 
 ### 3.4 Parallax
 
-Three bands of scribbled conifers in pencil grey, at 0.30 / 0.16 / 0.08 alpha,
-translating at **0.25 / 0.45 / 0.70** of camera x. Positions come from the
-level-seeded PRNG, so they are identical for everyone opening the same link and
-cost nothing to store.
+Three bands of scribbled conifers **and buildings** in pencil grey, at
+0.38 / 0.25 / 0.15 alpha, translating at **0.25 / 0.45 / 0.70** of camera x and
+**0.14 / 0.24 / 0.40** of camera y. Roughly a third of the props are buildings —
+a wobbly outline and a grid of square windows — so a ridgeline reads as a place
+rather than an infinite forest. Positions come from the level-seeded PRNG, so
+they are identical for everyone opening the same link and cost nothing to store.
 
 They exist for one reason: velocity is unreadable against a blank page. Without
 them a fast run and a slow run look the same.
 
-Trees are decoration. Nothing about them may ever feed back into physics.
+**Both axes, and the vertical one is not optional.** A first pass moved the
+scenery horizontally only, on the theory that the ruled lines already carried
+vertical speed. They do not. Descending is most of what happens in this game,
+and a fixed treeline sat dead still through the fastest part of every run.
+
+The vertical factor is gentler than the horizontal one, because a hill drops
+much further than it runs and matching the two makes the scenery streak. The
+pattern wraps in both axes; the vertical repeat is deliberately long (1100 px of
+parallax space) because three bands already put three ridgelines on screen, and
+a short repeat stacks more on top of those until the background stops reading as
+distance and starts reading as wallpaper.
+
+Scenery is decoration. Nothing about it may ever feed back into physics.
 
 ---
 
@@ -119,10 +133,15 @@ Five points. Positions at rest, rider facing +x, origin at the sled nose, y down
 | Point | Rest | Role |
 | --- | --- | --- |
 | `nose` | `(0, 0)` | **RIDE** — collides |
-| `tail` | `(-20, 0)` | **RIDE** — collides |
-| `seat` | `(-10, -11)` | structural only |
-| `head` | `(-10, -27)` | **CRASH** — contact ends the run |
-| `hand` | `(2, -18)` | decorative only |
+| `tail` | `(-28, 0)` | **RIDE** — collides |
+| `seat` | `(-14, -11)` | structural only |
+| `head` | `(-14, -27)` | **CRASH** — contact ends the run |
+| `hand` | `(0, -18)` | decorative only |
+
+The base is 28 px, not the 20 it started at. The rider's mass sits 27 px up, so
+a 20 px base only had to lean about **20°** past a runner before it went over;
+28 px buys **27°**. That is the difference between a hard landing being
+survivable and being a coin flip.
 
 Only `head` crashes in v1. "He crashes when his head hits the ground" is
 intuitive, readable, and the most forgiving thing to tune.
@@ -133,12 +152,12 @@ Solved in this exact order, **6 iterations per tick**.
 
 | A | B | Rest | Stiffness |
 | --- | --- | --- | --- |
-| `nose` | `tail` | 20.000 | 1.00 |
-| `nose` | `seat` | 14.866 | 1.00 |
-| `tail` | `seat` | 14.866 | 1.00 |
+| `nose` | `tail` | 28.000 | 1.00 |
+| `nose` | `seat` | 17.804 | 1.00 |
+| `tail` | `seat` | 17.804 | 1.00 |
 | `seat` | `head` | 16.000 | 0.92 |
-| `nose` | `head` | 28.792 | **0.60** |
-| `seat` | `hand` | 13.892 | 0.50 |
+| `nose` | `head` | 30.414 | **0.60** |
+| `seat` | `hand` | 15.652 | 0.50 |
 
 The first three form a rigid triangle — that is the sled. `nose–head` is soft, so
 he leans in a dip and rights himself after. `seat–hand` is floppy on purpose.

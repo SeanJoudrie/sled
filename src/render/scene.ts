@@ -40,17 +40,28 @@ export type SceneInput = {
 export function drawScene(s: SceneInput): void {
   const { ctx, w, h, cam, colour } = s
 
+  const world = () => {
+    ctx.save()
+    ctx.translate(w / 2, h / 2)
+    ctx.scale(cam.zoom, cam.zoom)
+    ctx.translate(-cam.x, -cam.y)
+  }
+
   drawPaper(ctx, w, h, colour('--sled-paper'))
   drawCreases(ctx, w, h, colour('--sled-grain'))
-  drawParallax(ctx, w, h, cam.x, colour('--sled-pencil'), s.reducedMotion)
 
-  ctx.save()
-  ctx.translate(w / 2, h / 2)
-  ctx.scale(cam.zoom, cam.zoom)
-  ctx.translate(-cam.x, -cam.y)
-
+  // Rules are *printed*, so they go down before anything drawn by hand.
   const r = visibleRect(cam, w, h)
+  world()
   drawRules(ctx, r.left, r.top, r.right, r.bottom, cam.zoom, colour('--sled-rule'), colour('--sled-margin-rule'))
+  ctx.restore()
+
+  // Scenery sits on top of the ruling, because someone sketched it onto the
+  // page. Both axes: a hill drops far more than it runs, and a treeline that
+  // only slides sideways sits dead still through the fastest part of a descent.
+  drawParallax(ctx, w, h, cam.x, cam.y, colour('--sled-pencil'), s.reducedMotion)
+
+  world()
 
   // Strokes the eraser will take are dimmed rather than hidden, so you can see
   // what you are about to lose before you commit to losing it.
