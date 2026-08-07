@@ -37,6 +37,7 @@ export function buildWorld(level: Level): World {
   // Precomputed subsets, still in level order — collision resolves in it.
   const solids = segs.filter((s) => s.brush.collides)
   const waters = segs.filter((s) => s.brush.water)
+  const finishes = segs.filter((s) => s.brush.finishes)
 
   const portals: Portal[] = []
   for (let i = 0; i < level.p.length; i++) {
@@ -99,6 +100,7 @@ export function buildWorld(level: Level): World {
     segs,
     solids,
     waters,
+    finishes,
     portals,
     wells,
     winds,

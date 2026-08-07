@@ -9,7 +9,7 @@
 import { AIR, BUOYANCY, GRAVITY, WATER_DRAG } from './consts.ts'
 import type { Rig, World } from './types.ts'
 import { IS_RIDE, applyPosture, solveConstraints } from './rig.ts'
-import { crashed, offTrack, resolveContacts, submerged } from './collide.ts'
+import { crashed, finished, offTrack, resolveContacts, submerged } from './collide.ts'
 import { applyPortals, stampForce } from './stamps.ts'
 
 /** Scratch for stamp forces. Reused across points; never read across ticks. */
@@ -56,7 +56,13 @@ export function step(rig: Rig, world: World): void {
   resolveContacts(pts, world)
 
   // 5 · Did the run end?
-  if (crashed(pts, world)) {
+  //
+  // Finish is checked first, and deliberately beats a crash on the same tick:
+  // clipping the tape and tumbling past it is a win, not a death. Anything else
+  // makes the most satisfying possible ending feel like a bug.
+  if (finished(pts, world)) {
+    rig.state = 'finished'
+  } else if (crashed(pts, world)) {
     rig.state = 'crashed'
   } else if (offTrack(pts, world)) {
     rig.state = 'gone'

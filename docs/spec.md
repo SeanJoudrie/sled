@@ -50,10 +50,10 @@ vectors and complex multiplication.
 Ruled notebook paper, aged very slightly. Three layers, back to front:
 
 1. **Paper ground**, filled flat.
-2. **Grain**, generated once at load into an offscreen 256×256 canvas of value
-   noise, tiled, at **3% maximum contrast**. Never animated, never regenerated.
-   Screen space — it is the sheet everything is printed on, and sliding it under
-   the camera turns a still texture into visible crawl.
+2. **Grain and crinkle**, generated once at load into an offscreen 256×256
+   canvas, tiled, at **3% maximum contrast** for both together. Never animated,
+   never regenerated. Screen space — it is the sheet everything is printed on,
+   and sliding it under the camera turns a still texture into visible crawl.
 3. **Folds**, in **world space**, so they belong to the page and pan with it. A
    fold is a pair — a soft shadow at ≤2.5% and a thin catch of light on one side
    — because that is what a crease does to a flat surface. Horizontals every
@@ -80,12 +80,12 @@ Ruled notebook paper, aged very slightly. Three layers, back to front:
 | `--sled-margin-rule` | `#E0A79E` | printed | the vertical margin |
 | `--sled-ink` | `#1E2430` | blue-black ballpoint | **solid line**, rider, UI |
 | `--sled-pencil` | `#A9A395` | pencil | **scenery**, parallax trees |
-| `--sled-red` | `#C4362E` | red pen | **kill** |
+| `--sled-red` | `#C4362E` | red pen | **spikes**, the scarf |
 | `--sled-blue` | `#2F62B8` | blue pen | **water** |
 | `--sled-yellow` | `#F2C744` | highlighter | **boost** |
 | `--sled-cyan` | `#7FD4E8` | highlighter | **ice** |
 | `--sled-brown` | `#8A6A3F` | highlighter | **tar** |
-| `--sled-green` | `#6FBF73` | highlighter | **portal A** |
+| `--sled-green` | `#6FBF73` | highlighter | **finish**, portal A |
 | `--sled-pink` | `#E87FA8` | highlighter | **portal B** |
 
 Nothing else. If a new mechanic needs a colour, it does not ship until a pen is
@@ -106,21 +106,66 @@ physics always uses the straight segment, so wobble cannot affect a run.
 passes, for the doubled-edge density a real marker leaves. No wobble — a
 highlighter is dragged, not sketched.
 
-Ordering, back to front: paper → rules → parallax → highlighter → ink → stamps →
-rider. Highlighter always sits *under* ink, so an ink line crossing a boost
-reads correctly.
+Ordering, back to front: paper and grain → creases → rules → parallax → water
+body → finish tape and highlighter → spikes and ink → stamps → flag → rider and
+scarf → eraser ring. Highlighter always sits *under* ink, so an ink line crossing
+a boost reads correctly.
 
-### 3.4 Parallax
+### 3.4 The crinkle
 
-Three bands of scribbled conifers **and buildings** in pencil grey, at
-0.38 / 0.25 / 0.15 alpha, translating at **0.25 / 0.45 / 0.70** of camera x and
-**0.14 / 0.24 / 0.40** of camera y. Roughly a third of the props are buildings —
-a wobbly outline and a grid of square windows — so a ridgeline reads as a place
-rather than an infinite forest. Positions come from the level-seeded PRNG, so
-they are identical for everyone opening the same link and cost nothing to store.
+The grain tile is value noise on a 64×64 lattice, smoothed. The crinkle is the
+*same* lattice run through a ridge function — `1 - |2v - 1|`, cubed — and added
+on top. The ridge turns smooth blobs into creased facets, which is what makes the
+page read as a sheet that has been folded and flattened rather than as clean
+stock. Fibre contributes 1.8% alpha and crinkle 2.2%, so the pair stays inside
+the 3% ceiling §3.1 sets.
+
+Sharing one lattice is not laziness: an independent second noise field would put
+crinkle highlights in places the fibre says are flat, and the sheet would stop
+reading as one surface.
+
+The crinkle is **tone only**. Rules and creases are drawn afterwards, straight,
+at a hairline. A crinkle that bent them would stop reading as paper and start
+reading as a warp filter.
+
+### 3.5 Parallax and the doodles
+
+Three bands in pencil grey at 0.38 / 0.25 / 0.15 alpha, translating at
+**0.25 / 0.45 / 0.70** of camera x and **0.14 / 0.24 / 0.40** of camera y.
 
 They exist for one reason: velocity is unreadable against a blank page. Without
 them a fast run and a slow run look the same.
+
+What is *in* them is the margin of a notebook. Ground props stand on the band's
+ground line — two kinds of tree, houses, blocky buildings, and a four-line Eiffel
+Tower. Sky props float above it — five-pointed stars, a shooting star with speed
+lines, a Saturn-ringed planet, comets, and that S everyone drew and nobody can
+name.
+
+**They are deliberately bad.** A handful of straight-ish strokes each, no
+shading, no perspective. If one of them starts looking accomplished it is wrong —
+the point is that a kid drew it in the margin, not that someone illustrated it.
+
+Placement comes from a **session seed**, rolled once per page load rather than
+from the level hash, so the scenery you sled past differs every time you open the
+toy. This is the one piece of decoration that is deliberately *not* reproducible
+from the level string: two people opening the same link see the same track and
+different doodles, which is correct, because the doodles are the page and the
+track is the level.
+
+Scenery is decoration. Nothing about it may ever feed back into physics, and the
+seed lives outside `sim/` where CI can prove the simulation cannot reach it.
+
+### 3.6 The scarf
+
+A five-link Verlet chain pinned to the rider's head, stepped in **render space**
+at frame rate, drawn in red. Gravity `0.42`, drag `0.86`, and a wind impulse of
+`0.62` per unit of rig speed pushed opposite the direction of travel.
+
+It is a speedometer you do not have to read. Standing still it dangles; at speed
+it streams out flat behind him. It is render state, never simulation state — it
+is stepped by the frame loop, not the tick, so it cannot influence a run and does
+not need to be deterministic.
 
 **Both axes, and the vertical one is not optional.** A first pass moved the
 scenery horizontally only, on the theory that the ruled lines already carried
@@ -220,7 +265,7 @@ changes every existing level string:
 
 | | Value | |
 | --- | --- | --- |
-| `GRAVITY` | `0.12` | px/tick², ≈200 px of fall in the first second |
+| `GRAVITY` | **`0.105`** | px/tick², ≈175 px of fall in the first second |
 | `AIR` | `0.999` | per-tick velocity retention |
 | `ITERATIONS` | `6` | constraint passes per tick |
 | `MAX_TICKS_PER_FRAME` | `5` | stall guard |
@@ -238,6 +283,13 @@ changes every existing level string:
 | `VORTEX_MIN_R` | `16` | vortex singularity guard |
 | `OFF_TRACK_MARGIN` | `2000` | leaving the level by this much ends the run |
 | `SPAWN_SNAP_R` | `400` | how far to look for a line to sit on |
+| `SPAWN_AHEAD` | **`28.0`** | nudge downhill, so the tail is not behind the flag |
+
+`GRAVITY` was `0.12` through phase 1. It came down because a jump is the thing
+people build tracks *for*, and at `0.12` the arc was over before it read as one.
+Note that friction here is a per-tick tangential damping factor and does **not**
+depend on normal force, so loosening gravity buys hang time without also making
+the ground slippery. Anything below about `0.09` starts reading as the moon.
 
 ---
 
@@ -257,13 +309,18 @@ free speed.
 **Restitution is zero for every brush.** A bouncing sled feels wrong and makes
 tracks unpredictable to author.
 
-**Crash test**, after collisions: the head within `HEAD_CRASH_R` of any
-collidable segment, or any point within `CONTACT_R` of a kill segment, ends the
-run. The head's test is swept for the same reason contact is.
+**End tests**, after collisions, in this order: **finished** (any point sweeping
+across a finish segment) → **crashed** (the head within `HEAD_CRASH_R` of any
+collidable segment, or any point within `CONTACT_R` of a spike segment) →
+**gone** (off-track). The head's test is swept for the same reason contact is.
+
+Finish is tested first on purpose. A tape drawn over the end of a track will
+sometimes overlap the geometry it ends at, and the run the player was trying to
+complete must not resolve as a crash on a technicality.
 
 ---
 
-## 7 · The seven brushes
+## 7 · The eight brushes
 
 | # | Brush | Colour | Class | Collides | friction | boost |
 | --- | --- | --- | --- | :-: | --- | --- |
@@ -271,9 +328,22 @@ run. The head's test is swept for the same reason contact is.
 | 1 | **Ice** | cyan | highlighter | ✓ | `0.0` | — |
 | 2 | **Tar** | brown | highlighter | ✓ | `0.038` | — |
 | 3 | **Boost** | yellow | highlighter | ✓ | `0.003` | `+0.08` |
-| 4 | **Kill** | red | ink | ✓ | `0.004` | — |
+| 4 | **Spikes** | red | ink | ✓ | `0.004` | — |
 | 5 | **Water** | blue | ink | ✗ | surface line, half-plane below | |
 | 6 | **Scenery** | pencil | ink | ✗ | drawing only | |
+| 7 | **Finish** | green | highlighter | ✗ | ends the run, won | |
+
+**Spikes** are brush 4. It used to be called Kill and it is exactly the same
+mechanic under a name that says what it looks like: a solid red line with small
+teeth combed along it every 13 px. Touching one ends the run. There is no
+half-measure — no health, no slow-down zone — because a track author needs to
+know that a line either kills or does not.
+
+**Finish** is brush 7, and it is the only way to *win*. A fat green highlighter
+band with tick marks, no collision at all: the rig passes straight through it and
+the run ends `finished`. It is checked **before** the crash test in the tick, so
+a finish tape drawn across a spike wall is a win rather than a death — the
+generous reading is the right one for the last line of a track.
 
 Friction is **per tick of contact**, and a resting sled touches 60×/second — so
 these are derived from per-second targets (ink keeps ~80%, tar ~10%), not picked
@@ -435,8 +505,9 @@ A 200-segment track lands around 500 bytes. Share is `#l=<string>` and requires
 no backend of any kind.
 
 The level hash is FNV-1a over the encoded string, feeding `mulberry32`. It
-drives **only** parallax placement and ink wobble, it lives outside `sim/`, and
-CI proves the simulation cannot even import it.
+drives **only** ink wobble, it lives outside `sim/`, and CI proves the simulation
+cannot even import it. Doodle placement uses a *session* seed instead — rolled
+once at page load, so the margin is different every visit (§3.5).
 
 ---
 
@@ -448,7 +519,7 @@ CI proves the simulation cannot even import it.
    anything to retrofit.
 3. ✅ Paper, rules, ink/highlighter rendering, parallax.
 4. ✅ Editor: draw, undo, erase, pan, zoom, play, reset.
-5. ✅ All seven brushes — one properties table, seven rows, so this landed with
+5. ✅ All eight brushes — one properties table, eight rows, so this landed with
    the editor rather than after it.
 6. ⬜ Rider system + click-to-cycle, on placeholder parts.
 7. ⬜ The three stamps in the editor. Portals last — the only subtle maths.

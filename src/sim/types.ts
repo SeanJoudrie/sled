@@ -17,9 +17,10 @@ export const BRUSH = {
   KILL: 4,
   WATER: 5,
   SCENERY: 6,
+  FINISH: 7,
 } as const
 
-export type BrushId = 0 | 1 | 2 | 3 | 4 | 5 | 6
+export type BrushId = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 /**
  * Ink is thin and opaque; highlighter is fat, translucent and multiply-blended,
@@ -44,6 +45,8 @@ export type BrushDef = {
   readonly kills: boolean
   /** Whether this line is a water surface rather than a solid. */
   readonly water: boolean
+  /** Whether crossing it ends the run as a win. */
+  readonly finishes: boolean
 }
 
 /**
@@ -57,13 +60,16 @@ export type BrushDef = {
  * reads as hitting a wall.
  */
 export const BRUSHES: readonly BrushDef[] = [
-  { id: BRUSH.INK,     name: 'Ink',     token: '--sled-ink',    cls: 'ink',         collides: true,  friction: 0.004, boost: 0,    kills: false, water: false },
-  { id: BRUSH.ICE,     name: 'Ice',     token: '--sled-cyan',   cls: 'highlighter', collides: true,  friction: 0.0,   boost: 0,    kills: false, water: false },
-  { id: BRUSH.TAR,     name: 'Tar',     token: '--sled-brown',  cls: 'highlighter', collides: true,  friction: 0.038, boost: 0,    kills: false, water: false },
-  { id: BRUSH.BOOST,   name: 'Boost',   token: '--sled-yellow', cls: 'highlighter', collides: true,  friction: 0.003, boost: 0.08, kills: false, water: false },
-  { id: BRUSH.KILL,    name: 'Kill',    token: '--sled-red',    cls: 'ink',         collides: true,  friction: 0.004, boost: 0,    kills: true,  water: false },
-  { id: BRUSH.WATER,   name: 'Water',   token: '--sled-blue',   cls: 'ink',         collides: false, friction: 0,     boost: 0,    kills: false, water: true  },
-  { id: BRUSH.SCENERY, name: 'Scenery', token: '--sled-pencil', cls: 'ink',         collides: false, friction: 0,     boost: 0,    kills: false, water: false },
+  { id: BRUSH.INK,     name: 'Ink',     token: '--sled-ink',    cls: 'ink',         collides: true,  friction: 0.004, boost: 0,    kills: false, water: false, finishes: false },
+  { id: BRUSH.ICE,     name: 'Ice',     token: '--sled-cyan',   cls: 'highlighter', collides: true,  friction: 0.0,   boost: 0,    kills: false, water: false, finishes: false },
+  { id: BRUSH.TAR,     name: 'Tar',     token: '--sled-brown',  cls: 'highlighter', collides: true,  friction: 0.038, boost: 0,    kills: false, water: false, finishes: false },
+  { id: BRUSH.BOOST,   name: 'Boost',   token: '--sled-yellow', cls: 'highlighter', collides: true,  friction: 0.003, boost: 0.08, kills: false, water: false, finishes: false },
+  { id: BRUSH.KILL,    name: 'Spikes',  token: '--sled-red',    cls: 'ink',         collides: true,  friction: 0.004, boost: 0,    kills: true,  water: false, finishes: false },
+  { id: BRUSH.WATER,   name: 'Water',   token: '--sled-blue',   cls: 'ink',         collides: false, friction: 0,     boost: 0,    kills: false, water: true,  finishes: false },
+  { id: BRUSH.SCENERY, name: 'Scenery', token: '--sled-pencil', cls: 'ink',         collides: false, friction: 0,     boost: 0,    kills: false, water: false, finishes: false },
+  // Green, and the only brush that ends a run happily. Does not collide: you
+  // ride *through* the tape, you do not land on it.
+  { id: BRUSH.FINISH,  name: 'Finish',  token: '--sled-green',  cls: 'highlighter', collides: false, friction: 0,     boost: 0,    kills: false, water: false, finishes: true  },
 ]
 
 export const BRUSH_COUNT = BRUSHES.length
@@ -162,6 +168,8 @@ export type World = {
   readonly solids: readonly Segment[]
   /** Water subset, in level order. First match wins; they are never summed. */
   readonly waters: readonly Segment[]
+  /** Finish lines, in level order. Crossing one ends the run as a win. */
+  readonly finishes: readonly Segment[]
   readonly portals: readonly Portal[]
   readonly wells: readonly Well[]
   readonly winds: readonly Wind[]
@@ -175,7 +183,7 @@ export type World = {
 
 export type Point = { x: number; y: number; px: number; py: number }
 
-export type RunState = 'running' | 'crashed' | 'gone'
+export type RunState = 'running' | 'crashed' | 'gone' | 'finished'
 
 export type Rig = {
   /** Fixed length 5, in NOSE, TAIL, SEAT, HEAD, HAND order. Never a Set or a Map. */

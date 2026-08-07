@@ -43,7 +43,7 @@ function mixFloat(h, v) {
   return mix(mix(h, _u32[0]), _u32[1])
 }
 
-const STATE_CODE = { running: 1, crashed: 2, gone: 3 }
+const STATE_CODE = { running: 1, crashed: 2, gone: 3, finished: 4 }
 
 /** Run a level and return its checksum, plus enough trace to assert coverage. */
 function run(level, ticks = TICKS) {
@@ -200,11 +200,14 @@ check(8, 'wire · decoded level deep-equals the original', () => {
   return true
 })
 
-check(9, 'coverage · the descent actually touches every brush', () => {
+check(9, 'coverage · the fixtures touch every brush', () => {
   const missing = []
-  const present = new Set(descent.l.map((s) => s[0]))
+  // Presence is checked across *both* fixtures: finish and spikes cannot share
+  // a track, because whichever comes first ends the run and the other is never
+  // reached. Contact is still checked on the descent, where it matters.
+  const present = new Set([...descent.l, ...portal.l].map((s) => s[0]))
   for (const id of Object.values(BRUSH)) {
-    if (!present.has(id)) missing.push(`brush ${id} absent from the fixture`)
+    if (!present.has(id)) missing.push(`brush ${id} absent from both fixtures`)
   }
 
   // Solid brushes: did a RIDE point come within contact range of one?
@@ -227,6 +230,11 @@ check(10, 'coverage · the portal fixture actually transits, and stamps are live
   if (baseDescent.world.wells.length !== 1) notes.push('descent well missing from the world')
   if (baseDescent.world.winds.length !== 1) notes.push('descent arrow wind missing from the world')
   if (basePortal.world.portals.length !== 1) notes.push('portal missing from the world')
+  // The finish line is the only brush that ends a run happily, so the only way
+  // to know it works is to see a fixture actually win.
+  if (basePortal.state !== 'finished') {
+    notes.push(`portal fixture should end "finished", ended "${basePortal.state}"`)
+  }
   // Both wind branches must be live somewhere, or the runtime trap in checks 3
   // and 6 silently covers only one of them.
   if (baseDescent.world.winds[0]?.kind !== 0) notes.push('descent wind is not an arrow')

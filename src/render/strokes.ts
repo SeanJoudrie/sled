@@ -76,6 +76,92 @@ function trace(ctx: CanvasRenderingContext2D, pts: ReadonlyArray<readonly [numbe
   ctx.stroke()
 }
 
+/** How far apart the spikes sit along a kill line, and how tall they stand. */
+const SPIKE_STEP = 13
+const SPIKE_HEIGHT = 7
+
+/**
+ * A kill line, drawn as spikes.
+ *
+ * It used to render as a plain red line — identical in weight to ink, so the
+ * one brush that ends your run looked exactly as dangerous as the one that
+ * doesn't. Little triangles along the top say it without a legend.
+ *
+ * The spikes are decoration: collision is still the bare segment, so what kills
+ * you is the line you drew, not the teeth pointing off it.
+ */
+export function drawSpikes(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+  const pts = wobbled(s)
+  ctx.save()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = INK_WIDTH
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  trace(ctx, pts)
+
+  ctx.lineWidth = INK_WIDTH * 0.85
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1]!
+    const [bx, by] = pts[i]!
+    const dx = bx - ax
+    const dy = by - ay
+    const len = Math.sqrt(dx * dx + dy * dy)
+    if (len < 1e-6) continue
+    const ux = dx / len
+    const uy = dy / len
+    // Spikes stand off the left of the direction of travel, which for a line
+    // drawn left-to-right is up — the side you land on.
+    const nx = uy
+    const ny = -ux
+
+    for (let d = SPIKE_STEP * 0.5; d < len; d += SPIKE_STEP) {
+      const cx = ax + ux * d
+      const cy = ay + uy * d
+      const half = SPIKE_STEP * 0.3
+      ctx.beginPath()
+      ctx.moveTo(cx - ux * half, cy - uy * half)
+      ctx.lineTo(cx + nx * SPIKE_HEIGHT, cy + ny * SPIKE_HEIGHT)
+      ctx.lineTo(cx + ux * half, cy + uy * half)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
+/**
+ * A finish line: a green band with a row of ticks, like tape across the track.
+ *
+ * Highlighter-class, so it reads as a zone rather than a wall — which is what
+ * it is. Nothing collides with it; you ride through.
+ */
+export function drawFinish(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+  drawHighlighter(ctx, s, colour)
+  ctx.save()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  ctx.globalAlpha = 0.85
+  for (let i = 1; i < s.pts.length; i++) {
+    const [ax, ay] = s.pts[i - 1]!
+    const [bx, by] = s.pts[i]!
+    const dx = bx - ax
+    const dy = by - ay
+    const len = Math.sqrt(dx * dx + dy * dy)
+    if (len < 1e-6) continue
+    const ux = dx / len
+    const uy = dy / len
+    for (let d = 0; d < len; d += 11) {
+      const cx = ax + ux * d
+      const cy = ay + uy * d
+      ctx.beginPath()
+      ctx.moveTo(cx - uy * 5, cy + ux * 5)
+      ctx.lineTo(cx + uy * 5, cy - ux * 5)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
 /** One ink stroke: thin, opaque, wobbled. */
 export function drawInk(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
   ctx.save()
@@ -164,10 +250,14 @@ export function drawStrokes(
   }
   for (const s of strokes) {
     const b = brushes[s.brush]
-    if (b?.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token))
+    if (!b || b.water) continue
+    if (b.finishes) drawFinish(ctx, s, colour(b.token))
+    else if (b.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token))
   }
   for (const s of strokes) {
     const b = brushes[s.brush]
-    if (b?.cls === 'ink') drawInk(ctx, s, colour(b.token))
+    if (!b || b.cls !== 'ink') continue
+    if (b.kills) drawSpikes(ctx, s, colour(b.token))
+    else drawInk(ctx, s, colour(b.token))
   }
 }

@@ -63,11 +63,19 @@ export function initGrain(ctx: CanvasRenderingContext2D, grain: string): void {
       const bot = lattice[i01]! + (lattice[i11]! - lattice[i01]!) * sx
       const v = top + (bot - top) * sy
 
+      // Crinkle: the same lattice run through a ridge function, which turns
+      // smooth blobs into creased facets. This is what makes it read as a sheet
+      // that has been folded and flattened rather than as clean stock — the
+      // ruled lines stay perfectly straight, it is only the tone that crumples.
+      const ridge = 1 - Math.abs(v * 2 - 1)
+      const crinkle = ridge * ridge * ridge
+
       const o = (y * GRAIN_TILE + x) * 4
       img.data[o] = gr
       img.data[o + 1] = gg
       img.data[o + 2] = gb
-      img.data[o + 3] = Math.round(v * 0.03 * 255) // ≤3% contrast
+      // Fibre plus crinkle, still inside the 3% ceiling the page is built on.
+      img.data[o + 3] = Math.round((v * 0.018 + crinkle * 0.022) * 255)
     }
   }
   tctx.putImageData(img, 0, 0)
