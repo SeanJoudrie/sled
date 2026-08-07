@@ -13,6 +13,8 @@ import { drawStrokes } from './strokes.ts'
 import { drawCreases, drawPaper, drawRules } from './paper.ts'
 import { drawParallax } from './parallax.ts'
 import type { Camera } from './camera.ts'
+import type { Scarf } from './scarf.ts'
+import { drawScarf } from './scarf.ts'
 import { visibleRect } from './camera.ts'
 import { CONSTRAINTS, HAND, HEAD, NOSE, SEAT, TAIL } from '../sim/index.ts'
 
@@ -32,6 +34,8 @@ export type SceneInput = {
   doomed: ReadonlySet<Stroke>
   /** Where the eraser is and how wide, in world units. Null unless erasing. */
   eraser: { x: number; y: number; r: number } | null
+  /** The rider's scarf. Render-only; never read by the simulation. */
+  scarf: Scarf | null
   startX: number
   startY: number
   colour: Palette
@@ -80,7 +84,7 @@ export function drawScene(s: SceneInput): void {
 
   if (s.world) drawStamps(ctx, s.world, colour)
   drawStartFlag(ctx, s.startX, s.startY, colour('--sled-ink'))
-  if (s.rig) drawRider(ctx, s.rig, colour)
+  if (s.rig) drawRider(ctx, s.rig, colour, s.scarf)
   if (s.eraser) drawEraser(ctx, s.eraser, cam.zoom, colour('--sled-ink'))
 
   ctx.restore()
@@ -179,8 +183,19 @@ function drawStartFlag(ctx: CanvasRenderingContext2D, x: number, y: number, ink:
  * later phases. Every constraint is drawn, so a rig that is folding or
  * mirroring is visible rather than something you have to infer.
  */
-function drawRider(ctx: CanvasRenderingContext2D, rig: Rig, colour: Palette): void {
-  const ink = colour(rig.state === 'running' ? '--sled-ink' : '--sled-red')
+function drawRider(
+  ctx: CanvasRenderingContext2D,
+  rig: Rig,
+  colour: Palette,
+  scarf: Scarf | null,
+): void {
+  const ink =
+    rig.state === 'running' ? colour('--sled-ink')
+    : rig.state === 'finished' ? colour('--sled-green')
+    : colour('--sled-red')
+
+  // Behind the rider, so it reads as trailing rather than draped over him.
+  if (scarf) drawScarf(ctx, scarf, colour('--sled-red'))
   const pts = rig.pts
 
   ctx.save()
@@ -200,8 +215,10 @@ function drawRider(ctx: CanvasRenderingContext2D, rig: Rig, colour: Palette): vo
   ctx.stroke()
   ctx.globalAlpha = 1
 
-  // The sled itself, drawn heavier than its rigging.
-  ctx.lineWidth = 2.6
+  // The sled itself, drawn heavier than its rigging — it is the part you are
+  // actually watching, and at the zoom a long track opens at, a hairline
+  // disappears into the ruling.
+  ctx.lineWidth = 3.6
   const nose = pts[NOSE]!
   const tail = pts[TAIL]!
   ctx.beginPath()
@@ -209,7 +226,7 @@ function drawRider(ctx: CanvasRenderingContext2D, rig: Rig, colour: Palette): vo
   ctx.lineTo(nose.x, nose.y)
   ctx.stroke()
 
-  ctx.lineWidth = 2
+  ctx.lineWidth = 2.6
   const seat = pts[SEAT]!
   const head = pts[HEAD]!
   const hand = pts[HAND]!
@@ -224,10 +241,27 @@ function drawRider(ctx: CanvasRenderingContext2D, rig: Rig, colour: Palette): vo
   ctx.arc(head.x, head.y, 5, 0, Math.PI * 2)
   ctx.stroke()
 
-  if (rig.state !== 'running') {
+  // What happened, written next to the head. Crash and off-track are both bad
+  // news and both red; finishing is not, and must never borrow their marks —
+  // the first version tested `state !== 'running'` and stamped a confused red
+  // `??` on the one outcome the player was aiming for.
+  if (rig.state === 'crashed' || rig.state === 'gone') {
     ctx.fillStyle = colour('--sled-red')
     ctx.font = 'bold 18px ui-monospace, monospace'
     ctx.fillText(rig.state === 'crashed' ? '!!' : '??', head.x + 9, head.y - 9)
+  } else if (rig.state === 'finished') {
+    // Three short rays, the way a kid draws something being pleased with itself.
+    ctx.strokeStyle = colour('--sled-green')
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + (i - 1) * 0.62
+      const dx = Math.cos(a)
+      const dy = Math.sin(a)
+      ctx.moveTo(head.x + dx * 9, head.y + dy * 9)
+      ctx.lineTo(head.x + dx * 16, head.y + dy * 16)
+    }
+    ctx.stroke()
   }
   ctx.restore()
 }

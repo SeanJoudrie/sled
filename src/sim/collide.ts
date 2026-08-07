@@ -218,6 +218,23 @@ export function crashed(pts: Point[], world: World): boolean {
   return false
 }
 
+/**
+ * Has a RIDE point crossed a finish line?
+ *
+ * Swept, like everything else that matters: a finish line is thin and he
+ * arrives at speed, so a proximity-only test would let a fast run sail through
+ * the tape and keep going.
+ */
+export function finished(pts: Point[], world: World): boolean {
+  for (let i = 0; i < world.finishes.length; i++) {
+    const f = world.finishes[i]!
+    for (let j = 0; j < RIDE_POINTS.length; j++) {
+      if (touches(pts[RIDE_POINTS[j]!]!, f, CONTACT_R)) return true
+    }
+  }
+  return false
+}
+
 /** Has the rig left the level entirely? */
 export function offTrack(pts: Point[], world: World): boolean {
   const b = world.bounds

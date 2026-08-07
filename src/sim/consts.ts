@@ -11,8 +11,14 @@
  * second. See FRICTION in types.ts for the per-second targets they came from.
  */
 
-/** px/tick². About 200 px of fall in the first second. Tune here, nowhere else. */
-export const GRAVITY = 0.12
+/**
+ * px/tick². Tune here, nowhere else.
+ *
+ * Loosened from 0.12 so a jump hangs long enough to be worth building. About
+ * 175 px of fall in the first second rather than 200 — enough air to land a
+ * gap deliberately, not so little that he floats.
+ */
+export const GRAVITY = 0.105
 
 /** Per-tick velocity retention in open air. */
 export const AIR = 0.999

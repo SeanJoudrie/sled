@@ -17,11 +17,11 @@ You can draw a track and watch him ride it, and the level travels in the URL.
 
 | | |
 | --- | --- |
-| ✅ **Sim core** | 5-point rig, 6 constraints, 7 brushes, 3 stamps, swept collision |
+| ✅ **Sim core** | 5-point rig, 6 constraints, 8 brushes, 3 stamps, swept collision |
 | ✅ **Level format** | half-pixel integers → delta → zig-zag → varint → base64url |
 | ✅ **Determinism gate** | 14 checks, green |
-| ✅ **The page** | paper, grain, ruled lines, ink vs highlighter, parallax |
-| ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all seven brushes |
+| ✅ **The page** | paper, grain and crinkle, ruled lines, ink vs highlighter, doodles |
+| ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all eight brushes |
 | ✅ **Share link** | the level lives in the URL; no backend of any kind |
 | ⬜ **Stamps in the editor** | portals, wells and wind run and round-trip, but nothing can place one yet |
 | ⬜ **The rider** | still bare segments; the layered part manifest and the art are the last phases |
@@ -43,13 +43,24 @@ phone has no right button or space bar to tell them apart. A mouse keeps its
 shortcuts either way — space-drag and middle-drag always pan, right-drag always
 erases.
 
-**Material** opens a sheet of all seven pens, each with its name and its stroke
+**Material** opens a sheet of all eight pens, each with its name and its stroke
 class. Picking one hands you back the pencil.
+
+| Pen | |
+| --- | --- |
+| **Ink** | plain geometry, a little friction |
+| **Ice** | frictionless |
+| **Tar** | kills speed |
+| **Boost** | pushes along the line, in the direction you drew it |
+| **Spikes** | red, small teeth — touching one ends the run |
+| **Water** | a surface line; everything below it is wet |
+| **Scenery** | drawing only, no physics |
+| **Finish** | green tape. Cross it and you win |
 
 | Keyboard | |
 | --- | --- |
 | `D` / `E` / `H` / `F` | draw · erase · move · start flag |
-| `1`–`7` | pick a pen |
+| `1`–`8` | pick a pen |
 | `Enter` | play / pause |
 | `Esc` | back to editing |
 | `⌘Z` / `⇧⌘Z` | undo / redo, 100 deep, whole strokes |
@@ -58,6 +69,28 @@ class. Picking one hands you back the pencil.
 
 Drawing a boost line right-to-left boosts **backwards** — the impulse runs along
 the segment as drawn. That is a feature, and the sheet says so.
+
+## The page
+
+The background is the margin of a notebook, drawn badly on purpose: two kinds of
+tree, houses, blocky buildings, a four-line Eiffel Tower, five-pointed stars, a
+shooting star, a ringed planet, comets, and that S everyone drew and nobody can
+name. Three parallax bands of them, so you can see how fast you are going —
+against a blank page a fast run and a slow run look identical.
+
+**They are re-rolled every time the page loads**, from a session seed rather than
+the level hash. Two people opening the same link get the same track and different
+doodles, which is the right way round: the doodles are the page, the track is the
+level.
+
+The paper has a crinkle worked into its grain — the same noise field run through
+a ridge function, so it reads as a sheet that has been folded and flattened. The
+ruled lines stay perfectly straight; only the tone crumples.
+
+The rider wears a red scarf. It hangs when he is slow and streams out flat when
+he is fast, which is a speedometer you do not have to read. It is a five-link
+Verlet chain in render space, stepped by the frame loop and never by the tick, so
+it cannot touch a run.
 
 ## Running it
 
@@ -93,9 +126,11 @@ src/level/
   prng.ts           decoration PRNG — never touched by the sim
   fixtures.ts       the two fixture levels
 src/render/         all render state; never written back to the sim
-  paper.ts          paper, grain, creases, ruled lines
-  strokes.ts        ink vs highlighter, and the wobble cache
-  parallax.ts       conifers and rooftops, parallaxed in both axes
+  paper.ts          paper, grain, crinkle, creases, ruled lines
+  strokes.ts        ink vs highlighter, water, spikes, finish tape
+  doodles.ts        the margin drawings — trees, houses, stars, that S
+  parallax.ts       three bands of them, parallaxed in both axes
+  scarf.ts          a five-link chain on the rider's neck
   camera.ts         pan, zoom, and the follow during a run
   scene.ts          one frame, composed
 src/editor/
@@ -134,10 +169,11 @@ each fail the run, and prose *mentioning* `atan2` does not.
 
 ## What the gate checks
 
-Two fixtures — a long descent covering all seven brushes plus a well and arrow
-wind, and a ramp through a rotating portal pair plus a vortex — run for up to
-3,000 ticks against a checksum taken over the raw IEEE-754 bits of every point,
-every tick.
+Two fixtures — a long descent covering the physical brushes plus a well and
+arrow wind, and a ramp through a rotating portal pair plus a vortex, ending on a
+finish tape — run for up to 3,000 ticks against a checksum taken over the raw
+IEEE-754 bits of every point, every tick. Between them they touch all eight
+brushes and all three stamps.
 
 | # | Check |
 | --- | --- |
@@ -146,7 +182,7 @@ every tick.
 | 3, 6 | identical with every transcendental and `Math.random` booby-trapped |
 | 7 | round-trip is stable, and seeds identical decoration |
 | 8 | decoded level deep-equals the original |
-| 9 | the descent actually contacts every brush |
+| 9 | the fixtures between them actually contact every brush |
 | 10 | the portal fixture actually transits, and every stamp is live |
 | 11 | no transcendentals anywhere in `sim/` |
 | 12 | `sim/` imports nothing from outside itself |
@@ -175,7 +211,7 @@ is read but not obeyed is worse than no flag.
 3. **Colour means behaviour.** A plain ink line is geometry; every coloured line
    *does* something, so a level is readable without a legend.
 4. **The palette is a middle-school pencil case** — ballpoint, red pen, blue
-   pen, three highlighters. Nothing outside it.
+   pen, pencil, four highlighters. Nothing outside it.
 5. **Ink and highlighter render differently.** Ink is thin and opaque;
    highlighter is fat, translucent, multiply-blended — and the ink line draws
    *through* it, because you highlight over writing.

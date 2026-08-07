@@ -159,8 +159,10 @@ export function buildControls(
       for (const brush of BRUSHES) {
         const note =
           brush.id === 3 ? 'along the line' :
+          brush.id === 4 ? 'ends the run' :
           brush.id === 5 ? 'sinks' :
           brush.id === 6 ? 'no physics' :
+          brush.id === 7 ? 'you win' :
           brush.cls === 'highlighter' ? 'highlighter' : 'pen'
         row(
           `<span class="sw ${brush.cls}" style="--c: var(${brush.token})"></span>` +

@@ -85,6 +85,9 @@ export function fixturePortal(): Level {
       L(BRUSH.INK, 0, 0, 600, 300),
       L(BRUSH.INK, 900, 500, 2000, 700),
       L(BRUSH.INK, 2000, 700, 2600, 700),
+      // Finish tape across the run-out. Without this the fixture ended "gone",
+      // which tested the off-track guard and nothing about winning.
+      L(BRUSH.FINISH, 2450, 640, 2450, 760),
     ],
     p: [[400, 150, 400, 250, 1200, 480, 1207, 504, 0]],
     g: [],

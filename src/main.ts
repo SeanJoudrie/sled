@@ -25,6 +25,7 @@ import { makeCamera, follow, quantiseZoom, screenToWorld, settle, zoomAt } from 
 import { drawScene } from './render/scene.ts'
 import { initGrain } from './render/paper.ts'
 import { seedParallax } from './render/parallax.ts'
+import { makeScarf, resetScarf, stepScarf } from './render/scarf.ts'
 
 const TICK_MS = 1000 / 60
 
@@ -53,6 +54,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 
 const model = new Model()
 const cam = makeCamera()
+const scarf = makeScarf()
 
 /**
  * What a one-finger drag does.
@@ -92,10 +94,17 @@ let doomed: Set<Stroke> = new Set()
 
 const currentLevel = (): Level => model.toLevel()
 
-/** Reseed the skyline. On load and on play, never per stroke. */
-function reseedParallax(): void {
-  seedParallax(fnv1a(encodeLevel(currentLevel())))
-}
+/**
+ * The margin is rolled once, per page load.
+ *
+ * It used to be seeded from the level so everyone opening a link saw the same
+ * doodles. Now it is different every visit, which is what makes coming back
+ * worth doing — you pass a different Eiffel Tower.
+ *
+ * Safe only because scenery is decoration: the determinism law governs the
+ * simulation, and check 12 proves `sim/` cannot reach the generator at all.
+ */
+const SESSION_SEED = (fnv1a(String(Date.now())) ^ ((Math.random() * 0xffffffff) >>> 0)) >>> 0
 
 /**
  * Whether the address bar can be written to at all. An embedded copy can sit on
@@ -180,7 +189,6 @@ function loadLevel(level: Level, recentre: boolean, syncHash = true): void {
   model.load(level)
   stopRun()
   if (recentre) fitCamera()
-  reseedParallax()
   if (syncHash) scheduleShareSync()
   sync()
 }
@@ -195,11 +203,11 @@ function startRun(): void {
   }
   world = buildWorld(currentLevel())
   rig = spawn(world)
+  resetScarf(scarf, rig.pts[SEAT].x, rig.pts[SEAT].y - 9)
   mode = 'run'
   playing = true
   accumulator = 0
   settle(cam)
-  reseedParallax()
   announce('Playing.')
   sync()
 }
@@ -476,7 +484,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 'f') return setTool({ kind: 'flag' })
 
   const n = Number(e.key)
-  if (Number.isInteger(n) && n >= 1 && n <= 7) setBrush((n - 1) as BrushId)
+  if (Number.isInteger(n) && n >= 1 && n <= 8) setBrush((n - 1) as BrushId)
 })
 
 window.addEventListener('keyup', (e) => {
@@ -604,6 +612,7 @@ function sync(): void {
     lastAnnouncedState = state
     if (state === 'crashed') announce('Crashed. Tap the page to keep drawing.')
     else if (state === 'gone') announce('Off the page. Tap the page to keep drawing.')
+    else if (state === 'finished') announce('Finished! Tap the page to keep drawing.')
   }
 }
 
@@ -641,6 +650,10 @@ function frame(now: number): void {
   if (mode === 'run' && rig) {
     const seat = rig.pts[SEAT]!
     follow(cam, seat.x, seat.y, speed(), reducedMotion)
+    // Render-only, and driven by real frame time rather than ticks — it is
+    // cloth, not physics, and nothing reads it back.
+    const nose = rig.pts[NOSE]!
+    stepScarf(scarf, seat.x, seat.y - 9, nose.x - nose.px, nose.y - nose.py, dt / TICK_MS)
   }
 
   drawScene({
@@ -653,6 +666,7 @@ function frame(now: number): void {
     rig,
     preview: mode === 'edit' ? model.previewStroke(cursor.x, cursor.y) : null,
     doomed,
+    scarf: mode === 'run' ? scarf : null,
     // Only while the eraser is the live tool — including a right-drag, which
     // erases whatever mode is selected.
     eraser:
@@ -684,6 +698,7 @@ function resize(): void {
 window.addEventListener('resize', resize)
 resize()
 initGrain(ctx, colour('--sled-grain'))
+seedParallax(SESSION_SEED)
 
 // A level in the URL wins. Failing that, the example track — an empty page with
 // no way to know what any of this does is a worse first five seconds than a
