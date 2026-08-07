@@ -673,9 +673,29 @@ once at page load, so the margin is different every visit (§3.5).
 **Open, awaiting a verdict on feel** — nobody has judged the ride yet:
 
 - Does he **carry speed like a sled**, or is he floaty / draggy?
-- Is `HEAD_CRASH_R = 2.0` too unforgiving on landings?
 - Is the **ice vs tar** contrast dramatic enough to justify two brushes?
 - Any **stutter or height pop** at a portal transit is a bug, not tuning.
+
+**Answered: `HEAD_CRASH_R` is not the lever.** The question was whether 2.0 is
+too unforgiving on landings. Twenty-seven synthetic jumps — three gap lengths ×
+three lip angles × three landing slopes — were run at 1.2, 2.0 and 3.5:
+
+| `HEAD_CRASH_R` | landed |
+| --- | --- |
+| 1.2 | 6 / 27 |
+| 2.0 | 5 / 27 |
+| 3.5 | 5 / 27 |
+
+Nearly tripling the tolerance moves one landing out of twenty-seven. When a
+landing fails it fails *hard* — the rig pitches forward and drives the head well
+inside even a 0.6 px band — so the tolerance is never the deciding factor. What
+does decide it is the **lip**: every shape that landed had a lip continuing at
+the ramp's own slope, and every shape whose lip flattened or kicked upward
+failed. The pitch on take-off is the thing to look at, not the crash radius.
+
+This answers "is the constant wrong" (no) and not "does the ride feel good",
+which still wants a person and a real session. It is one shape family, run
+headless.
 
 ---
 
