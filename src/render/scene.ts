@@ -45,6 +45,8 @@ export type SceneInput = {
   colour: Palette
   reducedMotion: boolean
   showEmptyHint: boolean
+  /** `?debug`: draw the rig's constraint graph over the rider. */
+  debug: boolean
 }
 
 export function drawScene(s: SceneInput): void {
@@ -104,7 +106,7 @@ export function drawScene(s: SceneInput): void {
 
   if (s.world) drawStamps(ctx, s.world, colour)
   drawStartFlag(ctx, s.startX, s.startY, colour('--sled-ink'))
-  if (s.rig) drawRider(ctx, s.rig, colour, s.scarf)
+  if (s.rig) drawRider(ctx, s.rig, colour, s.scarf, s.debug)
   if (s.eraser) drawEraser(ctx, s.eraser, cam.zoom, colour('--sled-ink'))
 
   ctx.restore()
@@ -197,17 +199,28 @@ function drawStartFlag(ctx: CanvasRenderingContext2D, x: number, y: number, ink:
 }
 
 /**
- * The rider, as bare segments over a placeholder sled.
+ * The rider.
  *
- * Still a placeholder: the layered part manifest and the hand-drawn art are
- * later phases. Every constraint is drawn, so a rig that is folding or
- * mirroring is visible rather than something you have to infer.
+ * Drawn in the same hand as the doodles: a handful of strokes, no shading, no
+ * perspective. It was bare constraint segments for four phases — every square
+ * inch of this page had been art-directed except the character the product is
+ * named around and the camera is locked onto, which made the whole thing read
+ * as a tech demo with very good scenery.
+ *
+ * Everything is built off the sled's **own frame** — `u` along nose→tail, `up`
+ * perpendicular to it — so the figure leans, rolls and lands with the rig
+ * instead of being pasted on at screen angles. There is no new state and no new
+ * point: the five the simulation already has are the joints.
+ *
+ * The constraint overlay is still there under `?debug`, because a rig that is
+ * folding or mirroring should be visible rather than inferred.
  */
 function drawRider(
   ctx: CanvasRenderingContext2D,
   rig: Rig,
   colour: Palette,
   scarf: Scarf | null,
+  debug: boolean,
 ): void {
   const ink =
     rig.state === 'running' ? colour('--sled-ink')
@@ -223,42 +236,113 @@ function drawRider(
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
-  ctx.lineWidth = 1.2
-  ctx.globalAlpha = 0.45
-  ctx.beginPath()
-  for (const c of CONSTRAINTS) {
-    const a = pts[c.a]!
-    const b = pts[c.b]!
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
-  }
-  ctx.stroke()
-  ctx.globalAlpha = 1
-
-  // The sled itself, drawn heavier than its rigging — it is the part you are
-  // actually watching, and at the zoom a long track opens at, a hairline
-  // disappears into the ruling.
-  ctx.lineWidth = 3.6
   const nose = pts[NOSE]!
   const tail = pts[TAIL]!
-  ctx.beginPath()
-  ctx.moveTo(tail.x, tail.y)
-  ctx.lineTo(nose.x, nose.y)
-  ctx.stroke()
-
-  ctx.lineWidth = 2.6
   const seat = pts[SEAT]!
   const head = pts[HEAD]!
   const hand = pts[HAND]!
+
+  if (debug) {
+    ctx.lineWidth = 1.2
+    ctx.globalAlpha = 0.45
+    ctx.beginPath()
+    for (const c of CONSTRAINTS) {
+      const a = pts[c.a]!
+      const b = pts[c.b]!
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+    }
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
+  // The sled's frame. `up` is the sled's up, not the screen's, so a rider on a
+  // steep face leans with the hill.
+  let ux = nose.x - tail.x
+  let uy = nose.y - tail.y
+  const len = Math.sqrt(ux * ux + uy * uy) || 1
+  ux /= len
+  uy /= len
+  const px = uy
+  const py = -ux
+  const at = (alongU: number, alongUp: number, from = { x: nose.x, y: nose.y }) => ({
+    x: from.x + ux * alongU + px * alongUp,
+    y: from.y + uy * alongU + py * alongUp,
+  })
+
+  /** Head radius. Declared up here because the neck stops short of it. */
+  const R = 5
+
+  // The rig is 28 px long and 27 px tall, which is not much room. Everything
+  // below is deliberately few and large: a first pass with a knee joint, a
+  // brimmed hat and a tall curl put six overlapping strokes inside a thumbnail
+  // and the curl swallowed the legs. At this size, detail subtracts.
+
+  // ── the toboggan ───────────────────────────────────────────────────────────
+  // A flat runner with a small upturn at the front — the one detail that makes
+  // it a sled rather than a plank. Heavier than everything else: it is the part
+  // you are actually watching, and at the zoom a long track opens at, a hairline
+  // vanishes into the ruling.
+  const curlTip = at(4, 6)
+  const curlCtl = at(8, 1)
+  ctx.lineWidth = 3.4
+  ctx.beginPath()
+  ctx.moveTo(tail.x, tail.y)
+  ctx.lineTo(nose.x, nose.y)
+  ctx.quadraticCurveTo(curlCtl.x, curlCtl.y, curlTip.x, curlTip.y)
+  ctx.stroke()
+
+  // ── legs ───────────────────────────────────────────────────────────────────
+  // One stroke, seat to a foot braced short of the curl. A knee joint reads as
+  // a scribble at this scale.
+  const foot = at(-6, 3)
+  ctx.lineWidth = 2.3
   ctx.beginPath()
   ctx.moveTo(seat.x, seat.y)
-  ctx.lineTo(head.x, head.y)
+  ctx.lineTo(foot.x, foot.y)
+  ctx.stroke()
+
+  // ── torso and arm ──────────────────────────────────────────────────────────
+  // The shoulder sits at 45% of seat→head. Higher, and the arm appears to come
+  // out of the side of the head.
+  // The torso runs the whole way to the head. Stopping it at the shoulder left
+  // the head attached to nothing — it read as floating just above the body, and
+  // the arm happening to pass nearby was the only thing disguising it.
+  const sh = { x: seat.x + (head.x - seat.x) * 0.45, y: seat.y + (head.y - seat.y) * 0.45 }
+  // Stops just *outside* the head circle. Running the 3 px torso into a 5 px
+  // circle filled it in and the head read as a blob.
+  const neck = at(0, -R * 1.15, head)
+  ctx.lineWidth = 3
+  ctx.beginPath()
   ctx.moveTo(seat.x, seat.y)
+  ctx.lineTo(neck.x, neck.y)
+  ctx.stroke()
+
+  // Thinner than the torso, so the two do not read as one double line when the
+  // rig is upright and they run close together.
+  ctx.lineWidth = 1.9
+  ctx.beginPath()
+  ctx.moveTo(sh.x, sh.y)
   ctx.lineTo(hand.x, hand.y)
   ctx.stroke()
 
+  // ── head and hat ───────────────────────────────────────────────────────────
+  ctx.lineWidth = 2.2
   ctx.beginPath()
-  ctx.arc(head.x, head.y, 5, 0, Math.PI * 2)
+  ctx.arc(head.x, head.y, R, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // A woolly hat: one dome, wider than the skull and clear above it. A quadratic
+  // only reaches half way to its control point, so a control at 2.3R peaked
+  // barely above the crown and the whole thing read as a thick head outline. At
+  // 4.2R the dome sits a full radius proud, which is what makes it a hat.
+  ctx.lineWidth = 2
+  const hatBack = at(-R * 1.3, R * 0.15, head)
+  const hatFront = at(R * 1.3, R * 0.15, head)
+  const hatTop = at(0, R * 4.2, head)
+  ctx.beginPath()
+  ctx.moveTo(hatBack.x, hatBack.y)
+  ctx.quadraticCurveTo(hatTop.x, hatTop.y, hatFront.x, hatFront.y)
   ctx.stroke()
 
   // What happened, drawn next to the head.

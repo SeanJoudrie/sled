@@ -510,6 +510,10 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault()
+    // A wheel mid-run is the player taking the camera, exactly as a drag or a
+    // pinch is. Without this the follow's own zoom term hauled the view straight
+    // back and the wheel appeared not to work at all.
+    if (mode === 'run') cameraTaken = true
     const r = canvas.getBoundingClientRect()
     zoomAt(cam, e.clientX - r.left, e.clientY - r.top, window.innerWidth, window.innerHeight,
       e.deltaY < 0 ? 1.12 : 1 / 1.12)
@@ -781,13 +785,28 @@ function frame(now: number): void {
     startY: model.startY,
     colour,
     reducedMotion,
+    debug: DEBUG,
     showEmptyHint: mode === 'edit' && model.isEmpty && gesture === null,
   })
 
   tickEl.textContent = String(rig ? rig.tick : 0)
   speedEl.textContent = `${speed().toFixed(2)} px/tick`
   hudEl.classList.toggle('live', mode === 'run')
-  if (DEBUG) canvas.dataset['zoom'] = cam.zoom.toFixed(4)
+  if (DEBUG) {
+    canvas.dataset['zoom'] = cam.zoom.toFixed(4)
+    // Where the rider is on screen. Published for the same reason the zoom is:
+    // otherwise a test that wants to look at the rider has to hunt for dark
+    // pixels on a page that is mostly dark lines, and ends up cropping empty
+    // paper without knowing it.
+    if (rig) {
+      const s = rig.pts[SEAT]!
+      const sx = window.innerWidth / 2 + (s.x - cam.x) * cam.zoom
+      const sy = window.innerHeight / 2 + (s.y - cam.y) * cam.zoom
+      canvas.dataset['rider'] = `${Math.round(sx)},${Math.round(sy)}`
+    } else {
+      delete canvas.dataset['rider']
+    }
+  }
 
   requestAnimationFrame(frame)
 }

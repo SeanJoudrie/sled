@@ -24,7 +24,8 @@ You can draw a track and watch him ride it, and the level travels in the URL.
 | ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all eight brushes |
 | ✅ **Share link** | the level lives in the URL; no backend of any kind |
 | ⬜ **Stamps in the editor** | portals, wells and wind run and round-trip, but nothing can place one yet |
-| ⬜ **The rider** | still bare segments; the layered part manifest and the art are the last phases |
+| ✅ **The rider** | drawn — hat, torso, legs, scarf, and a sled with an upturned nose |
+| ⬜ **Rider parts** | one fixed figure; the layered part manifest and click-to-cycle are still to come |
 
 ## Controls
 
@@ -96,7 +97,12 @@ The paper has a crinkle worked into its grain — the same noise field run throu
 a ridge function, so it reads as a sheet that has been folded and flattened. The
 ruled lines stay perfectly straight; only the tone crumples.
 
-The rider wears a red scarf. It hangs when he is slow and streams out flat when
+The rider is a hatted figure sitting on a toboggan, built entirely off the rig's
+own frame — nose→tail for forward, perpendicular for up — so he leans, rolls and
+lands with the sled rather than being pasted on at screen angles. Five points and
+a handful of strokes; `?debug` draws the constraint graph over the top.
+
+He wears a red scarf. It hangs when he is slow and streams out flat when
 he is fast, which is a speedometer you do not have to read. It is a five-link
 Verlet chain in render space, stepped by the frame loop and never by the tick, so
 it cannot touch a run.

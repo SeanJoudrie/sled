@@ -223,7 +223,35 @@ gesture available while watching was the one that stopped the thing you were
 watching — no panning, no looking ahead at the jump you were about to hit. In a
 loop that is build → watch → adjust, *watch* was the step with no controls in it.
 
-### 3.8 The scarf
+### 3.8 The rider
+
+A hatted figure sitting on a toboggan: a runner with a small upturn at the front,
+one leg stroke, a torso, an arm to the handle, a head and a woolly hat.
+
+Everything is built off the rig's **own frame** — `u` along nose→tail, `up`
+perpendicular to it — so the figure leans, rolls and lands with the sled instead
+of being pasted on at screen angles. No new state and no new points: the five the
+simulation already has are the joints.
+
+It was bare constraint segments for four phases. The paper had grain and a
+crinkle, the margin had a recognisable Eiffel Tower, the scarf was a five-link
+Verlet chain — and the character the product is named around, the one the camera
+is locked onto, was three lines and a circle. The most-looked-at object on screen
+was the least-designed one.
+
+**The rig is 28 px long and 27 px tall, and that governs everything.** A first
+pass with a knee joint, a brimmed hat and a tall curl put six overlapping strokes
+inside a thumbnail, and the curl swallowed the legs. At this size detail
+subtracts: few strokes, large. Three specific traps, each of which cost a
+screenshot to find — a quadratic only reaches half way to its control point, so a
+hat control at 2.3 R peaked barely above the crown and read as a thick head
+outline; stopping the torso at the shoulder left the head attached to nothing;
+and running a 3 px torso into a 5 px circle filled the head in.
+
+The constraint overlay lives on under `?debug`, because a rig that is folding or
+mirroring should be visible rather than inferred.
+
+### 3.9 The scarf
 
 A five-link Verlet chain pinned to the rider's head, stepped in **render space**
 at frame rate, drawn in red. Gravity `0.42`, drag `0.86`, and a wind impulse of
@@ -608,13 +636,14 @@ once at page load, so the margin is different every visit (§3.5).
 4. ✅ Editor: draw, undo, erase, pan, zoom, play, reset.
 5. ✅ All eight brushes — one properties table, eight rows, so this landed with
    the editor rather than after it.
-6. ⬜ Rider system + click-to-cycle, on placeholder parts.
+6. ⬜ Rider system + click-to-cycle. The figure is drawn (§3.8) but it is one
+   fixed drawing, not a manifest — nothing can be swapped yet.
 7. ⬜ The three stamps in the editor. Portals last — the only subtle maths.
    They already run and round-trip; there is just no UI to place one.
 8. ✅ Share link wired to the URL. A malformed link is **never** written over:
    overwriting the hash destroys the only copy of the level someone was sent,
    and a messenger truncating a long URL is exactly how that happens.
-9. ⬜ Hand-drawn parts replace the placeholders. Content only, zero code.
+9. ⬜ Hand-drawn parts replace the drawn-in-code figure. Content only, zero code.
 
 **Open, awaiting a verdict on feel** — nobody has judged the ride yet:
 
