@@ -54,21 +54,35 @@ export function linesToStrokes(lines: Level['l']): Stroke[] {
 }
 
 /**
- * A stable PRNG for one stroke's hand-drawn wobble.
+ * A stable PRNG for one *segment's* hand-drawn wobble.
  *
- * Seeded from the stroke's **own coordinates**, not the level hash.
+ * Seeded from the segment's own endpoints, not the level hash and not the whole
+ * stroke.
  *
  * The spec says level-seeded, and for a finished level that is the same thing —
  * everyone opening a link sees identical wobble either way, which is the actual
  * requirement. But while you are drawing, the level hash changes on every
  * stroke, so a level-seeded wobble would re-roll every line already on the page
- * each time you added another. Seeding per stroke keeps a line looking the way
- * it looked when you drew it.
+ * each time you added another.
+ *
+ * Per *segment* rather than per stroke because the eraser splits strokes now. A
+ * whole-stroke seed changes the moment a stroke loses a segment, so trimming the
+ * end of a long line made the rest of it visibly re-draw itself. A segment's
+ * wobble is a pure function of the two points the level actually stores, which
+ * is the right unit anyway: split a stroke anywhere and every surviving segment
+ * looks exactly as it did.
+ *
+ * Segments already meet exactly whatever the seeds do — `wobbled` pins every
+ * endpoint to zero offset — so nothing is lost by not sharing a stream.
  */
-export function strokeRng(s: Stroke): () => number {
-  let key = `${s.brush}`
-  for (const [x, y] of s.pts) key += `|${x},${y}`
-  return mulberry32(fnv1a(key))
+export function segmentRng(
+  brush: BrushId,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): () => number {
+  return mulberry32(fnv1a(`${brush}|${ax},${ay}|${bx},${by}`))
 }
 
 export function strokeBounds(s: Stroke): { minX: number; minY: number; maxX: number; maxY: number } {
@@ -85,21 +99,69 @@ export function strokeBounds(s: Stroke): { minX: number; minY: number; maxX: num
   return { minX, minY, maxX, maxY }
 }
 
-/** Squared distance from a point to a stroke's nearest segment. */
-export function distToStroke2(s: Stroke, x: number, y: number): number {
-  let best = Infinity
-  for (let i = 1; i < s.pts.length; i++) {
-    const [ax, ay] = s.pts[i - 1]!
-    const [bx, by] = s.pts[i]!
-    const abx = bx - ax
-    const aby = by - ay
-    const ab2 = abx * abx + aby * aby
-    let t = ab2 < 1e-9 ? 0 : ((x - ax) * abx + (y - ay) * aby) / ab2
-    t = t < 0 ? 0 : t > 1 ? 1 : t
-    const dx = x - (ax + abx * t)
-    const dy = y - (ay + aby * t)
-    const d2 = dx * dx + dy * dy
-    if (d2 < best) best = d2
+/** Squared distance from a point to one segment of a stroke. */
+function segDist2(s: Stroke, j: number, x: number, y: number): number {
+  const [ax, ay] = s.pts[j]!
+  const [bx, by] = s.pts[j + 1]!
+  const abx = bx - ax
+  const aby = by - ay
+  const ab2 = abx * abx + aby * aby
+  let t = ab2 < 1e-9 ? 0 : ((x - ax) * abx + (y - ay) * aby) / ab2
+  t = t < 0 ? 0 : t > 1 ? 1 : t
+  const dx = x - (ax + abx * t)
+  const dy = y - (ay + aby * t)
+  return dx * dx + dy * dy
+}
+
+/**
+ * Which segments of a stroke the eraser is over.
+ *
+ * Segment `j` spans `pts[j] → pts[j + 1]`, so a stroke of n points has n − 1 of
+ * them. Returns indices rather than a yes/no for the whole stroke, because the
+ * eraser takes the part you touched and not the line you happened to touch it
+ * with.
+ */
+export function segmentsNear(s: Stroke, x: number, y: number, radius2: number): number[] {
+  const out: number[] = []
+  for (let j = 0; j + 1 < s.pts.length; j++) {
+    if (segDist2(s, j, x, y) <= radius2) out.push(j)
   }
-  return best
+  return out
+}
+
+/**
+ * Split a stroke around the segments an eraser touched.
+ *
+ * What survives is every maximal run of untouched segments, each becoming a
+ * stroke in its own right — which is what an eraser on paper does, and what the
+ * previous whole-stroke delete could not: fixing the end of one long confident
+ * hill meant deleting the hill. The removed runs come back too, so the renderer
+ * can ghost exactly what is about to go rather than the whole line.
+ */
+export function splitStroke(
+  s: Stroke,
+  cut: ReadonlySet<number>,
+): { keep: Stroke[]; removed: Stroke[] } {
+  const keep: Stroke[] = []
+  const removed: Stroke[] = []
+  const n = s.pts.length - 1
+  if (n < 1) return { keep, removed }
+
+  let runStart = 0
+  let runCut = cut.has(0)
+  // A run of segments [a..b] owns points [a..b+1].
+  const flush = (last: number): void => {
+    const pts = s.pts.slice(runStart, last + 2)
+    if (pts.length >= 2) (runCut ? removed : keep).push({ brush: s.brush, pts })
+  }
+  for (let j = 1; j < n; j++) {
+    const isCut = cut.has(j)
+    if (isCut !== runCut) {
+      flush(j - 1)
+      runStart = j
+      runCut = isCut
+    }
+  }
+  flush(n - 1)
+  return { keep, removed }
 }

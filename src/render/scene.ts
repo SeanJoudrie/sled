@@ -9,6 +9,7 @@
 import { BRUSHES } from '../sim/index.ts'
 import type { Rig, World } from '../sim/index.ts'
 import type { Stroke } from '../level/stroke.ts'
+import { splitStroke } from '../level/stroke.ts'
 import { drawStrokes } from './strokes.ts'
 import { drawCreases, drawPaper, drawRules } from './paper.ts'
 import { drawParallax } from './parallax.ts'
@@ -30,8 +31,11 @@ export type SceneInput = {
   rig: Rig | null
   /** The stroke currently under the cursor, drawn as a live preview. */
   preview: Stroke | null
-  /** Strokes the eraser is about to remove, drawn ghosted. */
-  doomed: ReadonlySet<Stroke>
+  /**
+   * Which segments of which strokes the eraser is about to take, drawn ghosted.
+   * Keyed by stroke; the numbers are segment indices.
+   */
+  doomed: ReadonlyMap<Stroke, ReadonlySet<number>>
   /** Where the eraser is and how wide, in world units. Null unless erasing. */
   eraser: { x: number; y: number; r: number } | null
   /** The rider's scarf. Render-only; never read by the simulation. */
@@ -70,16 +74,32 @@ export function drawScene(s: SceneInput): void {
 
   world()
 
-  // Strokes the eraser will take are dimmed rather than hidden, so you can see
-  // what you are about to lose before you commit to losing it.
-  const keep = s.doomed.size ? s.strokes.filter((k) => !s.doomed.has(k)) : s.strokes
-  drawStrokes(ctx, keep, BRUSHES, colour)
+  // What the eraser will take is dimmed rather than hidden, so you can see what
+  // you are about to lose before you commit to losing it. Split at the same
+  // segment boundaries the erase itself will use — ghosting the whole stroke
+  // would promise to remove a line the eraser is only going to trim.
+  let keep: readonly Stroke[] = s.strokes
+  const ghost: Stroke[] = []
   if (s.doomed.size) {
-    ctx.save()
-    ctx.globalAlpha = 0.22
-    drawStrokes(ctx, s.strokes.filter((k) => s.doomed.has(k)), BRUSHES, colour)
-    ctx.restore()
+    const kept: Stroke[] = []
+    keep = kept
+    for (const st of s.strokes) {
+      const segs = s.doomed.get(st)
+      if (!segs || segs.size === 0) {
+        kept.push(st)
+        continue
+      }
+      const split = splitStroke(st, segs)
+      kept.push(...split.keep)
+      ghost.push(...split.removed)
+    }
   }
+  drawStrokes(ctx, keep, BRUSHES, colour)
+  // 0.22 is passed as a multiplier rather than set on the context: every draw
+  // function assigns its own globalAlpha, and canvas alpha replaces rather than
+  // composes, so setting it here was silently cancelled. The ghost had never
+  // once been translucent.
+  if (ghost.length) drawStrokes(ctx, ghost, BRUSHES, colour, 0.22)
   if (s.preview) drawStrokes(ctx, [s.preview], BRUSHES, colour)
 
   if (s.world) drawStamps(ctx, s.world, colour)

@@ -14,11 +14,11 @@ import {
   step,
 } from './sim/index.ts'
 import type { BrushId, Level, Rig, World } from './sim/index.ts'
-import type { Stroke } from './level/stroke.ts'
 import { encodeLevel, readHash } from './level/format.ts'
 import { fnv1a } from './level/prng.ts'
 import { fixtureDescent } from './level/fixtures.ts'
 import { ERASE_SCREEN_R, Model } from './editor/model.ts'
+import type { Doomed } from './editor/model.ts'
 import { buildControls } from './editor/toolbar.ts'
 import type { Action, ToolId } from './editor/toolbar.ts'
 import { makeCamera, follow, quantiseZoom, screenToWorld, settle, zoomAt } from './render/camera.ts'
@@ -104,7 +104,7 @@ let cameraTaken = false
 type Gesture =
   | { kind: 'draw' }
   | { kind: 'pan'; lastX: number; lastY: number }
-  | { kind: 'erase'; doomed: Set<Stroke> }
+  | { kind: 'erase'; doomed: Doomed }
   | { kind: 'pinch'; dist: number; midX: number; midY: number }
   | null
 
@@ -112,7 +112,7 @@ let gesture: Gesture = null
 let spaceHeld = false
 const pointers = new Map<number, { x: number; y: number }>()
 let cursor = { x: 0, y: 0 }
-let doomed: Set<Stroke> = new Set()
+let doomed: Doomed = new Map()
 
 // ── level plumbing ───────────────────────────────────────────────────────────
 
@@ -325,7 +325,7 @@ canvas.addEventListener('pointerdown', (e) => {
     // A second finger cancels whatever the first was doing, rather than leaving
     // a stray line through the middle of a pinch.
     if (gesture?.kind === 'draw') model.cancelStroke()
-    doomed = new Set()
+    doomed = new Map()
     gesture = beginPinch()
     if (mode === 'run') cameraTaken = true
     return
@@ -360,7 +360,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 
   if (forceErase || tool.kind === 'erase') {
-    gesture = { kind: 'erase', doomed: new Set() }
+    gesture = { kind: 'erase', doomed: new Map() }
     collectDoomed(cursor.x, cursor.y)
     return
   }
@@ -436,12 +436,11 @@ function endPointer(e: PointerEvent): void {
       announce('Stroke added.')
     }
   } else if (gesture?.kind === 'erase') {
-    const n = gesture.doomed.size
     if (model.erase(gesture.doomed)) {
       scheduleShareSync()
-      announce(`${n} stroke${n === 1 ? '' : 's'} erased.`)
+      announce('Erased.')
     }
-    doomed = new Set()
+    doomed = new Map()
   }
 
   gesture = null
@@ -475,7 +474,7 @@ const eraseRadius = (): number => ERASE_SCREEN_R / cam.zoom
 
 function collectDoomed(x: number, y: number): void {
   if (gesture?.kind !== 'erase') return
-  for (const s of model.strokesAt(x, y, eraseRadius())) gesture.doomed.add(s)
+  model.collectSegments(x, y, eraseRadius(), gesture.doomed)
   doomed = gesture.doomed
 }
 

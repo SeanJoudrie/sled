@@ -9,7 +9,7 @@
  */
 
 import type { Stroke } from '../level/stroke.ts'
-import { strokeRng } from '../level/stroke.ts'
+import { segmentRng } from '../level/stroke.ts'
 import { BRUSH } from '../sim/index.ts'
 import type { BrushDef } from '../sim/index.ts'
 
@@ -39,12 +39,14 @@ export function wobbled(s: Stroke): Array<readonly [number, number]> {
   const hit = wobbleCache.get(s)
   if (hit) return hit
 
-  const rng = strokeRng(s)
   const out: Array<readonly [number, number]> = []
 
   for (let i = 1; i < s.pts.length; i++) {
     const [ax, ay] = s.pts[i - 1]!
     const [bx, by] = s.pts[i]!
+    // Seeded per segment, so splitting a stroke leaves every surviving piece
+    // wobbling exactly as it did before the cut.
+    const rng = segmentRng(s.brush, ax, ay, bx, by)
     if (i === 1) out.push([ax, ay])
 
     const dx = bx - ax
@@ -91,9 +93,15 @@ const SPIKE_HEIGHT = 7
  * The spikes are decoration: collision is still the bare segment, so what kills
  * you is the line you drew, not the teeth pointing off it.
  */
-export function drawSpikes(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+export function drawSpikes(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  colour: string,
+  alpha = 1,
+): void {
   const pts = wobbled(s)
   ctx.save()
+  ctx.globalAlpha = alpha
   ctx.strokeStyle = colour
   ctx.lineWidth = INK_WIDTH
   ctx.lineCap = 'round'
@@ -142,13 +150,18 @@ export function drawSpikes(ctx: CanvasRenderingContext2D, s: Stroke, colour: str
  * Highlighter-class, so it reads as a zone rather than a wall — which is what
  * it is. Nothing collides with it; you ride through.
  */
-export function drawFinish(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
-  drawHighlighter(ctx, s, colour)
+export function drawFinish(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  colour: string,
+  alpha = 1,
+): void {
+  drawHighlighter(ctx, s, colour, alpha)
   ctx.save()
   ctx.strokeStyle = colour
   ctx.lineWidth = 2
   ctx.lineCap = 'round'
-  ctx.globalAlpha = 0.85
+  ctx.globalAlpha = 0.85 * alpha
   for (let i = 1; i < s.pts.length; i++) {
     const [ax, ay] = s.pts[i - 1]!
     const [bx, by] = s.pts[i]!
@@ -182,13 +195,18 @@ const BOOST_STEP = 26
  * other, so four words in a sheet you opened ten minutes ago were the only
  * record of which one you made. Chevrons put the answer back on the page.
  */
-export function drawBoostArrows(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+export function drawBoostArrows(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  colour: string,
+  alpha = 1,
+): void {
   ctx.save()
   ctx.strokeStyle = colour
   ctx.lineWidth = 1.8
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.globalAlpha = 0.9
+  ctx.globalAlpha = 0.9 * alpha
 
   for (let i = 1; i < s.pts.length; i++) {
     const [ax, ay] = s.pts[i - 1]!
@@ -216,11 +234,19 @@ export function drawBoostArrows(ctx: CanvasRenderingContext2D, s: Stroke, colour
   ctx.restore()
 }
 
-/** One ink stroke: thin, opaque, wobbled. Optionally dashed. */
+/**
+ * One ink stroke: thin, opaque, wobbled. Optionally dashed.
+ *
+ * `alpha` is a multiplier, not a value. Canvas `globalAlpha` replaces rather
+ * than composes, so a function that sets it to 1 silently cancels whatever the
+ * caller asked for — which is exactly what this did, and why the eraser's
+ * "ghost" preview had never once been translucent.
+ */
 export function drawInk(
   ctx: CanvasRenderingContext2D,
   s: Stroke,
   colour: string,
+  alpha = 1,
   dash?: readonly number[],
 ): void {
   ctx.save()
@@ -228,7 +254,7 @@ export function drawInk(
   ctx.lineWidth = INK_WIDTH
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.globalAlpha = 1
+  ctx.globalAlpha = alpha
   ctx.globalCompositeOperation = 'source-over'
   if (dash) ctx.setLineDash(dash as number[])
   trace(ctx, wobbled(s))
@@ -236,13 +262,18 @@ export function drawInk(
 }
 
 /** One highlighter stroke: fat, translucent, multiplied, dragged not sketched. */
-export function drawHighlighter(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+export function drawHighlighter(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  colour: string,
+  alpha = 1,
+): void {
   ctx.save()
   ctx.strokeStyle = colour
   ctx.lineWidth = HIGHLIGHTER_WIDTH
   ctx.lineCap = 'square'
   ctx.lineJoin = 'round'
-  ctx.globalAlpha = 0.5
+  ctx.globalAlpha = 0.5 * alpha
   ctx.globalCompositeOperation = 'multiply'
   // No wobble — a highlighter is dragged, not sketched.
   trace(ctx, s.pts)
@@ -266,6 +297,7 @@ export function drawWaterBody(
   ctx: CanvasRenderingContext2D,
   s: Stroke,
   colour: string,
+  alpha = 1,
 ): void {
   if (s.pts.length < 2) return
   let lowest = -Infinity
@@ -276,7 +308,7 @@ export function drawWaterBody(
   grad.addColorStop(1, 'transparent')
 
   ctx.save()
-  ctx.globalAlpha = 0.11
+  ctx.globalAlpha = 0.11 * alpha
   ctx.globalCompositeOperation = 'multiply'
   ctx.fillStyle = grad
   ctx.beginPath()
@@ -303,28 +335,29 @@ export function drawStrokes(
   strokes: readonly Stroke[],
   brushes: readonly BrushDef[],
   colour: (token: string) => string,
+  alpha = 1,
 ): void {
   for (const s of strokes) {
     const b = brushes[s.brush]
-    if (b?.water) drawWaterBody(ctx, s, colour(b.token))
+    if (b?.water) drawWaterBody(ctx, s, colour(b.token), alpha)
   }
   for (const s of strokes) {
     const b = brushes[s.brush]
     if (!b || b.water) continue
-    if (b.finishes) drawFinish(ctx, s, colour(b.token))
-    else if (b.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token))
+    if (b.finishes) drawFinish(ctx, s, colour(b.token), alpha)
+    else if (b.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token), alpha)
     // Chevrons go on in ink, over the band — you highlight, then write on top.
     // Yellow-on-yellow would not read at all.
-    if (b.boost > 0) drawBoostArrows(ctx, s, colour('--sled-ink'))
+    if (b.boost > 0) drawBoostArrows(ctx, s, colour('--sled-ink'), alpha)
   }
   for (const s of strokes) {
     const b = brushes[s.brush]
     if (!b || b.cls !== 'ink') continue
-    if (b.kills) drawSpikes(ctx, s, colour(b.token))
+    if (b.kills) drawSpikes(ctx, s, colour(b.token), alpha)
     // Scenery is the one entry in a list built on "colour means behaviour" that
     // means the *absence* of behaviour — the one thing a colour cannot say. A
     // dash can: a broken line is not a surface anywhere anyone has ever drawn.
-    else if (b.id === BRUSH.SCENERY) drawInk(ctx, s, colour(b.token), [7, 5])
-    else drawInk(ctx, s, colour(b.token))
+    else if (b.id === BRUSH.SCENERY) drawInk(ctx, s, colour(b.token), alpha, [7, 5])
+    else drawInk(ctx, s, colour(b.token), alpha)
   }
 }

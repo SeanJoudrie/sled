@@ -63,7 +63,7 @@ class. Picking one hands you back the pencil.
 | `1`–`8` | pick a pen |
 | `Enter` | play / pause |
 | `Esc` | back to editing |
-| `⌘Z` / `⇧⌘Z` | undo / redo, 100 deep, whole strokes |
+| `⌘Z` / `⇧⌘Z` | undo / redo, 100 deep, one step per gesture |
 | wheel or pinch | zoom, `0.25×`–`4×` in 1/16 steps |
 | double-tap | reframe the level |
 | `?debug` | show the tick counter and publish the camera zoom |
@@ -71,6 +71,9 @@ class. Picking one hands you back the pencil.
 Drawing a boost line right-to-left boosts **backwards** — the impulse runs along
 the segment as drawn. That is a feature, and the chevrons drawn along the line
 say which way it went, so you do not have to remember.
+
+**The eraser takes the part you touched**, not the whole line. Scrub the middle
+of a long hill and you get two hills; scrub all of it and it is gone.
 
 **You can look around during a run.** Drag to move the page and pinch to zoom
 without stopping it; the camera stops following the moment you touch it, and
@@ -140,7 +143,7 @@ src/render/         all render state; never written back to the sim
   camera.ts         pan, zoom, and the follow during a run
   scene.ts          one frame, composed
 src/editor/
-  model.ts          strokes, undo/redo, erase, level derivation
+  model.ts          strokes, undo/redo, segment erase, level derivation
   toolbar.ts        the corner buttons and the material sheet
 src/main.ts         input, gestures, the loop
 scripts/check-determinism.mjs

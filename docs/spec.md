@@ -106,10 +106,26 @@ freed up. Purple is reserved for note lines (§10).
 Two stroke functions; every brush declares which it uses.
 
 **Ink** — `lineWidth 2.4`, `lineCap round`, full alpha, `source-over`. Hand-drawn
-wobble: on commit, subdivide into ~12 px pieces and offset each interior vertex
-perpendicular by `±0.45 px` from the level-seeded PRNG. The wobble is baked at
-commit time and stored **only in the render cache, never in level data** — the
-physics always uses the straight segment, so wobble cannot affect a run.
+wobble: subdivide into ~12 px pieces and offset each interior vertex
+perpendicular by `±0.45 px`. Stored **only in the render cache, never in level
+data** — the physics always uses the straight segment, so wobble cannot affect a
+run.
+
+The wobble PRNG is seeded **per segment**, from that segment's own two endpoints.
+Not from the level hash, which changes on every stroke and would re-roll every
+line already on the page each time you drew another. And not from the whole
+stroke, because the eraser splits strokes: a whole-stroke seed changes the moment
+a stroke loses a segment, so trimming the end of a long line made the rest of it
+visibly redraw itself. A segment's wobble is now a pure function of the two
+points the level actually stores, which is the right unit regardless. Nothing is
+lost by not sharing a stream between segments — every endpoint is pinned to zero
+offset, so they meet exactly whatever the seeds do.
+
+**Every draw function takes `alpha` as a multiplier, never as a value.** Canvas
+`globalAlpha` *replaces*, so a function that assigns it silently cancels whatever
+the caller asked for. Setting it on the context before calling `drawStrokes` did
+nothing at all, which is why the eraser's ghost preview had never once been
+translucent.
 
 **Highlighter** — `lineWidth 11`, `lineCap square`, `globalAlpha 0.5`,
 `globalCompositeOperation 'multiply'`. Drawn twice with a 0.8 px offset between
@@ -166,7 +182,28 @@ track is the level.
 Scenery is decoration. Nothing about it may ever feed back into physics, and the
 seed lives outside `sim/` where CI can prove the simulation cannot reach it.
 
-### 3.6 The camera during a run
+### 3.6 The eraser
+
+The eraser takes the **segments** it touches and splits the stroke, leaving every
+maximal run of untouched segments as a stroke in its own right. A stroke whose
+every segment is touched disappears, so scrubbing a whole line still removes it.
+
+It used to delete whole strokes. The unit a person thinks they *drew* and the
+unit they want to *fix* are different things: you draw one long confident hill —
+which is exactly what the empty-page hint tells you to do — the landing is
+slightly wrong, and the only options were to delete the entire hill or live with
+it. The workaround was to draw in short stubs, which makes worse-looking tracks:
+the tool was teaching a bad habit to protect its data model.
+
+The radius is **15 screen pixels**, divided by zoom to get world units, so it is
+the same size under your finger at every zoom. One undo snapshot per drag, not
+per stroke and not per segment — the unit of undo is the gesture.
+
+What is about to go is ghosted at 22%, split at exactly the same segment
+boundaries the erase will use. Ghosting the whole stroke would promise to remove
+a line the eraser is only going to trim.
+
+### 3.7 The camera during a run
 
 The camera follows the sled, critically damped, and eases toward **0.85× the
 zoom the run started at** as speed rises.
@@ -186,7 +223,7 @@ gesture available while watching was the one that stopped the thing you were
 watching — no panning, no looking ahead at the jump you were about to hit. In a
 loop that is build → watch → adjust, *watch* was the step with no controls in it.
 
-### 3.7 The scarf
+### 3.8 The scarf
 
 A five-link Verlet chain pinned to the rider's head, stepped in **render space**
 at frame rate, drawn in red. Gravity `0.42`, drag `0.86`, and a wind impulse of
