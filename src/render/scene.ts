@@ -251,16 +251,24 @@ function drawRider(
     ctx.fillText(rig.state === 'crashed' ? '!!' : '??', head.x + 9, head.y - 9)
   } else if (rig.state === 'finished') {
     // Three short rays, the way a kid draws something being pleased with itself.
-    ctx.strokeStyle = colour('--sled-green')
-    ctx.lineWidth = 2
+    //
+    // Knocked out in paper first, because the rig stops *on* the tape — a win is
+    // the one state where the rider is guaranteed to be standing on a green
+    // band, and green rays on green tape are invisible at exactly the moment
+    // they need to be read.
     ctx.beginPath()
     for (let i = 0; i < 3; i++) {
       const a = -Math.PI / 2 + (i - 1) * 0.62
       const dx = Math.cos(a)
       const dy = Math.sin(a)
       ctx.moveTo(head.x + dx * 9, head.y + dy * 9)
-      ctx.lineTo(head.x + dx * 16, head.y + dy * 16)
+      ctx.lineTo(head.x + dx * 17, head.y + dy * 17)
     }
+    ctx.strokeStyle = colour('--sled-paper')
+    ctx.lineWidth = 5
+    ctx.stroke()
+    ctx.strokeStyle = colour('--sled-green')
+    ctx.lineWidth = 2.2
     ctx.stroke()
   }
   ctx.restore()
