@@ -10,6 +10,7 @@
 
 import type { Stroke } from '../level/stroke.ts'
 import { strokeRng } from '../level/stroke.ts'
+import { BRUSH } from '../sim/index.ts'
 import type { BrushDef } from '../sim/index.ts'
 
 export const INK_WIDTH = 2.4
@@ -109,10 +110,17 @@ export function drawSpikes(ctx: CanvasRenderingContext2D, s: Stroke, colour: str
     if (len < 1e-6) continue
     const ux = dx / len
     const uy = dy / len
-    // Spikes stand off the left of the direction of travel, which for a line
-    // drawn left-to-right is up — the side you land on.
-    const nx = uy
-    const ny = -ux
+    // Spikes stand on whichever side is *up*, never on whichever side happens to
+    // be left of the direction you drew in. Keyed to the stroke direction, a
+    // line drawn right-to-left put its teeth underneath while the lethal segment
+    // stayed exactly where it was — the drawing actively misreported where the
+    // danger was, which is the one thing the teeth were added to fix.
+    let nx = uy
+    let ny = -ux
+    if (ny > 0) {
+      nx = -nx
+      ny = -ny
+    }
 
     for (let d = SPIKE_STEP * 0.5; d < len; d += SPIKE_STEP) {
       const cx = ax + ux * d
@@ -162,8 +170,59 @@ export function drawFinish(ctx: CanvasRenderingContext2D, s: Stroke, colour: str
   ctx.restore()
 }
 
-/** One ink stroke: thin, opaque, wobbled. */
-export function drawInk(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+/** How far apart the chevrons sit along a boost line. */
+const BOOST_STEP = 26
+
+/**
+ * Which way a boost pushes.
+ *
+ * Boost runs along the segment as drawn, so a line drawn right-to-left pushes
+ * backwards. That is a real feature and the material sheet says "along the
+ * line" — but a yellow band drawn one way is pixel-identical to one drawn the
+ * other, so four words in a sheet you opened ten minutes ago were the only
+ * record of which one you made. Chevrons put the answer back on the page.
+ */
+export function drawBoostArrows(ctx: CanvasRenderingContext2D, s: Stroke, colour: string): void {
+  ctx.save()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 1.8
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.globalAlpha = 0.9
+
+  for (let i = 1; i < s.pts.length; i++) {
+    const [ax, ay] = s.pts[i - 1]!
+    const [bx, by] = s.pts[i]!
+    const dx = bx - ax
+    const dy = by - ay
+    const len = Math.sqrt(dx * dx + dy * dy)
+    if (len < 1e-6) continue
+    const ux = dx / len
+    const uy = dy / len
+    const nx = -uy
+    const ny = ux
+    const arm = 3.4
+
+    for (let d = BOOST_STEP * 0.5; d < len; d += BOOST_STEP) {
+      const cx = ax + ux * d
+      const cy = ay + uy * d
+      ctx.beginPath()
+      ctx.moveTo(cx - ux * arm + nx * arm, cy - uy * arm + ny * arm)
+      ctx.lineTo(cx + ux * arm, cy + uy * arm)
+      ctx.lineTo(cx - ux * arm - nx * arm, cy - uy * arm - ny * arm)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
+/** One ink stroke: thin, opaque, wobbled. Optionally dashed. */
+export function drawInk(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  colour: string,
+  dash?: readonly number[],
+): void {
   ctx.save()
   ctx.strokeStyle = colour
   ctx.lineWidth = INK_WIDTH
@@ -171,6 +230,7 @@ export function drawInk(ctx: CanvasRenderingContext2D, s: Stroke, colour: string
   ctx.lineJoin = 'round'
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
+  if (dash) ctx.setLineDash(dash as number[])
   trace(ctx, wobbled(s))
   ctx.restore()
 }
@@ -253,11 +313,18 @@ export function drawStrokes(
     if (!b || b.water) continue
     if (b.finishes) drawFinish(ctx, s, colour(b.token))
     else if (b.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token))
+    // Chevrons go on in ink, over the band — you highlight, then write on top.
+    // Yellow-on-yellow would not read at all.
+    if (b.boost > 0) drawBoostArrows(ctx, s, colour('--sled-ink'))
   }
   for (const s of strokes) {
     const b = brushes[s.brush]
     if (!b || b.cls !== 'ink') continue
     if (b.kills) drawSpikes(ctx, s, colour(b.token))
+    // Scenery is the one entry in a list built on "colour means behaviour" that
+    // means the *absence* of behaviour — the one thing a colour cannot say. A
+    // dash can: a broken line is not a surface anywhere anyone has ever drawn.
+    else if (b.id === BRUSH.SCENERY) drawInk(ctx, s, colour(b.token), [7, 5])
     else drawInk(ctx, s, colour(b.token))
   }
 }

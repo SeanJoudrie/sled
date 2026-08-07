@@ -37,6 +37,19 @@ const stateEl = document.getElementById('state')!
 const toastEl = document.getElementById('toast')!
 const liveEl = document.getElementById('live')!
 
+const hudEl = document.querySelector('.hud') as HTMLElement
+/**
+ * `?debug` shows the tick counter and publishes the camera zoom on the canvas.
+ *
+ * The zoom is otherwise unobservable from outside, which meant the only way to
+ * check whether the camera was misbehaving was to measure ruled-line spacing off
+ * a screenshot — and that silently reports multiples of the true spacing when
+ * scenery breaks up the line detection. A measurement you cannot trust is worse
+ * than no measurement.
+ */
+const DEBUG = new URLSearchParams(location.search).has('debug')
+if (DEBUG) hudEl.classList.add('debug')
+
 const css = getComputedStyle(document.documentElement)
 const colourCache = new Map<string, string>()
 const colour = (token: string): string => {
@@ -75,6 +88,17 @@ let editCamX = 0
 let editCamY = 0
 let editZoom = 1
 
+/**
+ * The zoom a run started at, and whether the player has taken the camera.
+ *
+ * The follow is a convenience for someone who is not steering — the moment they
+ * pan or pinch, it stops, for the rest of that run. A camera that hauls the view
+ * back to the sled while you are trying to look at the jump you just built is
+ * worse than no camera help at all.
+ */
+let runBaseZoom = 1
+let cameraTaken = false
+
 // ── pointers ─────────────────────────────────────────────────────────────────
 
 type Gesture =
@@ -93,6 +117,28 @@ let doomed: Set<Stroke> = new Set()
 // ── level plumbing ───────────────────────────────────────────────────────────
 
 const currentLevel = (): Level => model.toLevel()
+
+/**
+ * A world built from the page as it stands, for drawing stamps while editing.
+ *
+ * Stamps used to render only during a run, because `drawStamps` was handed the
+ * run's world and there was none in edit mode. That made a level able to carry
+ * physics that is not on the page: the example track has a gravity well and an
+ * arrow wind, and until you pressed play neither existed as far as the page was
+ * concerned. A shared link could put a well into someone's editor and silently
+ * bend every run they built on what looked like blank paper.
+ *
+ * Built through `buildWorld` rather than read off the model directly, so the
+ * derived fields the renderer needs — a wind's unit direction, a vortex's radius
+ * — come from the same place the simulation gets them and cannot drift.
+ *
+ * Cached, and invalidated by `sync`, which already runs after every edit.
+ */
+let editWorld: World | null = null
+function stampWorld(): World {
+  if (!editWorld) editWorld = buildWorld(currentLevel())
+  return editWorld
+}
 
 /**
  * The margin is rolled once, per page load.
@@ -207,6 +253,8 @@ function startRun(): void {
   mode = 'run'
   playing = true
   accumulator = 0
+  runBaseZoom = cam.zoom
+  cameraTaken = false
   settle(cam)
   announce('Playing.')
   sync()
@@ -279,6 +327,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (gesture?.kind === 'draw') model.cancelStroke()
     doomed = new Set()
     gesture = beginPinch()
+    if (mode === 'run') cameraTaken = true
     return
   }
   if (pointers.size > 2) return
@@ -290,15 +339,19 @@ canvas.addEventListener('pointerdown', (e) => {
   const forcePan = spaceHeld || e.button === 1
   const forceErase = e.button === 2
 
-  if (mode === 'run') {
-    // Tapping the page mid-run gets you back to editing.
-    stopRun()
-    return
-  }
-
   pressX = p.x
   pressY = p.y
   pressT = e.timeStamp
+
+  if (mode === 'run') {
+    // Mid-run, a drag moves the page and a *tap* goes back to editing. It used
+    // to end the run on pointer-down, which meant the one gesture available
+    // during playback was the one that stopped it — no panning, no zooming, no
+    // looking ahead at the jump you were about to hit. The tap-versus-drag test
+    // in `endPointer` was already written; this just uses it here too.
+    gesture = { kind: 'pan', lastX: p.x, lastY: p.y }
+    return
+  }
 
   if (forcePan || (!forceErase && tool.kind === 'pan')) {
     gesture = { kind: 'pan', lastX: p.x, lastY: p.y }
@@ -332,8 +385,19 @@ canvas.addEventListener('pointermove', (e) => {
 
   if (gesture?.kind === 'pinch') return updatePinch(gesture)
   if (gesture?.kind === 'pan') {
-    cam.x -= (p.x - gesture.lastX) / cam.zoom
-    cam.y -= (p.y - gesture.lastY) / cam.zoom
+    const dx = p.x - gesture.lastX
+    const dy = p.y - gesture.lastY
+    // Mid-run, moving the page hands the camera over for the rest of the run.
+    // Measured from where the press started, against the same slop the tap test
+    // uses, so the jitter inside a tap cannot silently detach the follow from
+    // someone who only meant to tap.
+    if (mode === 'run') {
+      const mx = p.x - pressX
+      const my = p.y - pressY
+      if (mx * mx + my * my > TAP_SLOP * TAP_SLOP) cameraTaken = true
+    }
+    cam.x -= dx / cam.zoom
+    cam.y -= dy / cam.zoom
     gesture.lastX = p.x
     gesture.lastY = p.y
     return
@@ -352,6 +416,20 @@ function endPointer(e: PointerEvent): void {
     if (pointers.size < 2) gesture = null
     return
   }
+  const movedX = p.x - pressX
+  const movedY = p.y - pressY
+  const wasTap =
+    Math.sqrt(movedX * movedX + movedY * movedY) < TAP_SLOP &&
+    e.timeStamp - pressT < TAP_MAX_MS
+
+  if (mode === 'run') {
+    gesture = null
+    // A tap goes back to editing. A drag was a look around, and must not.
+    if (wasTap && pointers.size === 0) stopRun()
+    setCursorClass()
+    return
+  }
+
   if (gesture?.kind === 'draw') {
     if (model.endStroke(w.x, w.y)) {
       scheduleShareSync()
@@ -369,11 +447,6 @@ function endPointer(e: PointerEvent): void {
   gesture = null
 
   // Double tap, decided here so a drag can never be mistaken for a tap.
-  const movedX = p.x - pressX
-  const movedY = p.y - pressY
-  const wasTap =
-    Math.sqrt(movedX * movedX + movedY * movedY) < TAP_SLOP &&
-    e.timeStamp - pressT < TAP_MAX_MS
   if (wasTap) {
     const near =
       Math.abs(p.x - lastTapX) < DOUBLE_TAP_SLOP && Math.abs(p.y - lastTapY) < DOUBLE_TAP_SLOP
@@ -525,8 +598,21 @@ function setBrush(b: BrushId): void {
 }
 
 function togglePlay(): void {
-  if (mode === 'run' && rig?.state === 'running') playing = !playing
-  else startRun()
+  if (mode === 'run' && rig?.state === 'running') {
+    playing = !playing
+    sync()
+    return
+  }
+  // Playing a blank page used to give three and a half seconds of a sled
+  // falling through nothing before the off-track test ended it. The person most
+  // likely to do that is someone who just cleared the page and pressed the
+  // biggest button to see what it does, and a long silence is a bad answer.
+  if (model.isEmpty) {
+    toast('Draw a hill first')
+    announce('Nothing to ride yet. Draw a line first.')
+    return
+  }
+  startRun()
   sync()
 }
 
@@ -559,13 +645,26 @@ const controls = buildControls(
   },
 )
 
+/**
+ * Past this, some apps wrap or truncate a pasted URL.
+ *
+ * A 600-segment track — busy, but well inside what someone builds in twenty
+ * minutes — encodes to about 5,500 characters. The failure is silent and total:
+ * the recipient gets a broken link and the author never had a signal. The toast
+ * used to report the raw character count, which is a number with no threshold
+ * attached and so reads as trivia rather than a warning.
+ */
+const LONG_LINK = 2000
+
 async function copyLink(): Promise<void> {
   const encoded = encodeLevel(currentLevel())
   const url = `${location.origin}${location.pathname}#l=${encoded}`
   writeHash(encoded)
+  const long = encoded.length > LONG_LINK
   try {
     await navigator.clipboard.writeText(url)
-    toast(`Link copied · ${encoded.length} characters`)
+    toast(long ? 'Link copied — it is long, some apps may cut it' : 'Link copied')
+    if (long) announce('Link copied. It is a long link and some apps may cut it short.')
     return
   } catch {
     // Clipboard access can be refused, and on an opaque origin so can the
@@ -591,6 +690,10 @@ function announce(msg: string): void {
 
 let lastAnnouncedState = ''
 function sync(): void {
+  // Anything that reaches sync may have changed the page, so the cached world
+  // the stamps are drawn from is no longer trustworthy.
+  editWorld = null
+
   controls.sync({
     tool,
     brush: model.brush,
@@ -649,7 +752,7 @@ function frame(now: number): void {
 
   if (mode === 'run' && rig) {
     const seat = rig.pts[SEAT]!
-    follow(cam, seat.x, seat.y, speed(), reducedMotion)
+    if (!cameraTaken) follow(cam, seat.x, seat.y, speed(), reducedMotion, runBaseZoom)
     // Render-only, and driven by real frame time rather than ticks — it is
     // cloth, not physics, and nothing reads it back.
     const nose = rig.pts[NOSE]!
@@ -662,7 +765,9 @@ function frame(now: number): void {
     h: window.innerHeight,
     cam,
     strokes: model.strokes,
-    world,
+    // Stamps are part of the page, not part of playback, so they are drawn from
+    // the level whether or not a run is happening.
+    world: world ?? stampWorld(),
     rig,
     preview: mode === 'edit' ? model.previewStroke(cursor.x, cursor.y) : null,
     doomed,
@@ -682,6 +787,8 @@ function frame(now: number): void {
 
   tickEl.textContent = String(rig ? rig.tick : 0)
   speedEl.textContent = `${speed().toFixed(2)} px/tick`
+  hudEl.classList.toggle('live', mode === 'run')
+  if (DEBUG) canvas.dataset['zoom'] = cam.zoom.toFixed(4)
 
   requestAnimationFrame(frame)
 }

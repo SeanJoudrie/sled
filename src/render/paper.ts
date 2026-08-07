@@ -104,7 +104,7 @@ export function drawPaper(
 
 /** How far apart the folds sit, in world units. Roughly a sheet folded in thirds. */
 const FOLD_SPACING_Y = 1120
-const FOLD_SPACING_X = 1680
+export const FOLD_SPACING_X = 1680
 
 /**
  * Folds and creases — the thing that makes it a *sheet* rather than a colour.
@@ -115,7 +115,12 @@ const FOLD_SPACING_X = 1680
  *
  * A fold is a pair, not a line — a soft shadow on one side and a thin catch of
  * light on the other, which is what a crease actually does to a flat surface.
- * Everything here is at or under 2.5%, so it should read as *feel*, not texture.
+ *
+ * These ran at 2.5% and 1.8% and were, in practice, invisible: I could not find
+ * them in a screenshot at any zoom while actively looking. Something you cannot
+ * locate when you are hunting for it is not subtle, it is absent — and it was
+ * costing a per-frame pass to be absent. Raised until they register. Still well
+ * under the threshold where they would read as texture rather than as feel.
  */
 export function drawCreases(
   ctx: CanvasRenderingContext2D,
@@ -137,7 +142,7 @@ export function drawCreases(
     // A horizontal fold is never quite straight, and never quite level.
     const sag = ((y / FOLD_SPACING_Y) % 2 === 0 ? 1 : -1) * 5
 
-    ctx.globalAlpha = 0.025
+    ctx.globalAlpha = 0.045
     ctx.strokeStyle = grain
     ctx.lineWidth = shadow
     ctx.beginPath()
@@ -156,7 +161,7 @@ export function drawCreases(
   }
 
   // One vertical fold per sheet-width, softer than the horizontals.
-  ctx.globalAlpha = 0.018
+  ctx.globalAlpha = 0.032
   ctx.strokeStyle = grain
   ctx.lineWidth = shadow * 1.15
   ctx.beginPath()
@@ -209,13 +214,20 @@ export function drawRules(
     ctx.globalAlpha = 1
   }
 
-  if (MARGIN_RULE_X >= left && MARGIN_RULE_X <= right) {
-    ctx.strokeStyle = marginRule
-    ctx.beginPath()
-    ctx.moveTo(MARGIN_RULE_X, top)
-    ctx.lineTo(MARGIN_RULE_X, bottom)
-    ctx.stroke()
+  // One margin rule per sheet-width, landing with the vertical folds, so a long
+  // track reads as running across consecutive sheets. It used to be a single
+  // line at world x = 96: pan a couple of screens right — which a descent does
+  // constantly — and the most recognisable feature of ruled paper was gone for
+  // good, leaving generic lined paper forever.
+  ctx.strokeStyle = marginRule
+  ctx.beginPath()
+  const firstMargin = Math.floor((left - MARGIN_RULE_X) / FOLD_SPACING_X) * FOLD_SPACING_X
+  for (let x = MARGIN_RULE_X + firstMargin; x <= right; x += FOLD_SPACING_X) {
+    if (x < left) continue
+    ctx.moveTo(x, top)
+    ctx.lineTo(x, bottom)
   }
+  ctx.stroke()
   ctx.restore()
 }
 

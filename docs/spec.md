@@ -55,20 +55,30 @@ Ruled notebook paper, aged very slightly. Three layers, back to front:
    never regenerated. Screen space — it is the sheet everything is printed on,
    and sliding it under the camera turns a still texture into visible crawl.
 3. **Folds**, in **world space**, so they belong to the page and pan with it. A
-   fold is a pair — a soft shadow at ≤2.5% and a thin catch of light on one side
+   fold is a pair — a soft shadow at 4.5% and a thin catch of light on one side
    — because that is what a crease does to a flat surface. Horizontals every
    1120 world px, verticals every 1680, roughly a sheet folded in thirds.
    An earlier version put two diagonal bands in *screen* space, which made them
    the one element on the page that visibly did not belong to it.
 
-   If you can see any of this as texture rather than feel it as paper, it is
-   too strong.
-4. **Rules**, horizontal every 28 px, plus one vertical margin rule at x = 96.
-   Both live in **world space** and pan with the paper, so the level sits *on*
-   the page rather than in front of it. They fade out as their on-screen spacing
-   drops below ~17 px: zoomed out far enough, 28 px rules land a few pixels
-   apart and the page stops reading as ruled paper and starts reading as
-   corduroy.
+   These ran at 2.5% and 1.8% and were, in practice, invisible — not findable in
+   a screenshot at any zoom while actively looking for them. Something you cannot
+   locate when you are hunting for it is not subtle, it is absent, and it was
+   costing a per-frame pass to be absent. If you can see them as texture rather
+   than feel them as paper they are too strong; if you cannot find them at all
+   they are not there.
+4. **Rules**, horizontal every 28 px, plus a vertical margin rule **every
+   1680 px**, landing with the vertical folds so a long track reads as running
+   across consecutive sheets. Both live in **world space** and pan with the
+   paper, so the level sits *on* the page rather than in front of it.
+
+   The margin rule used to exist at exactly one world x. Pan a couple of screens
+   right — which a descent does constantly — and the most recognisable feature of
+   ruled paper was gone for good, leaving generic lined paper forever.
+
+   Rules fade out as their on-screen spacing drops below ~17 px: zoomed out far
+   enough, 28 px rules land a few pixels apart and the page stops reading as
+   ruled paper and starts reading as corduroy.
 
 ### 3.2 The pencil case — the entire palette
 
@@ -156,7 +166,27 @@ track is the level.
 Scenery is decoration. Nothing about it may ever feed back into physics, and the
 seed lives outside `sim/` where CI can prove the simulation cannot reach it.
 
-### 3.6 The scarf
+### 3.6 The camera during a run
+
+The camera follows the sled, critically damped, and eases toward **0.85× the
+zoom the run started at** as speed rises.
+
+Both halves of that sentence are corrections. It used to ease toward an absolute
+1.0, which meant pressing play on a phone framed at the 0.5 fit-zoom roughly
+doubled the view inside a second — unasked, every single run. Anchoring the
+pull-back to the starting zoom makes it a modulation of what you were already
+looking at. And 0.85 rather than 0.7 because the parallax and the scarf already
+carry speed; a third simultaneous speed signal that also moves the camera is one
+too many.
+
+**The follow stops the moment the player touches it**, for the rest of that run.
+Drag moves the page and pinch zooms, neither ends the run, and a *tap* is what
+returns you to editing. Playback used to end on pointer-down, which meant the one
+gesture available while watching was the one that stopped the thing you were
+watching — no panning, no looking ahead at the jump you were about to hit. In a
+loop that is build → watch → adjust, *watch* was the step with no controls in it.
+
+### 3.7 The scarf
 
 A five-link Verlet chain pinned to the rider's head, stepped in **render space**
 at frame rate, drawn in red. Gravity `0.42`, drag `0.86`, and a wind impulse of
@@ -335,7 +365,13 @@ complete must not resolve as a crash on a technicality.
 
 **Spikes** are brush 4. It used to be called Kill and it is exactly the same
 mechanic under a name that says what it looks like: a solid red line with small
-teeth combed along it every 13 px. Touching one ends the run. There is no
+teeth combed along it every 13 px. Touching one ends the run.
+
+The teeth stand on whichever side is **up**, never on whichever side happens to
+be left of the direction you drew in. Keyed to stroke direction, a line drawn
+right-to-left put its teeth underneath while the lethal segment stayed exactly
+where it was — the drawing actively misreported where the danger was, which is
+the one thing the teeth exist to prevent. There is no
 half-measure — no health, no slow-down zone — because a track author needs to
 know that a line either kills or does not.
 
@@ -350,7 +386,15 @@ these are derived from per-second targets (ink keeps ~80%, tar ~10%), not picked
 directly. See §9.2.
 
 **Boost direction** is the segment as drawn, A→B. Drawing a boost line
-right-to-left boosts backwards. This is a feature and the toolbar must say so.
+right-to-left boosts backwards. This is a feature, and it has to be visible on
+the line itself — chevrons every 26 px, drawn in ink over the yellow band. A
+band drawn one way is pixel-identical to one drawn the other, so four words in a
+sheet you opened ten minutes ago were the only record of which one you made.
+
+**Scenery renders dashed.** It is the one entry in a list built on *colour means
+behaviour* that means the absence of behaviour — the one thing a colour cannot
+say. A broken line can: nothing anyone has ever drawn treats a dashed line as a
+surface.
 
 **Water** does not collide. It defines a half-plane: a point is submerged when
 its x lies within the segment's span and its y is below the surface at that x.
@@ -500,6 +544,12 @@ padding, with the format version as a raw leading byte.
 
 **Wind strengths ride the wire as integer thousandths** — a float zig-zags to
 zero.
+
+**The decoder rejects trailing bytes.** A messenger that concatenates something
+onto the end of a URL produces exactly that, and without the check it decoded
+"successfully" into a level quietly different from the one that was sent — which
+meant the careful damaged-link handling below never fired for the likeliest kind
+of damage.
 
 A 200-segment track lands around 500 bytes. Share is `#l=<string>` and requires
 no backend of any kind.

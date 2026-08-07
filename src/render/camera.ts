@@ -13,8 +13,19 @@ export const ZOOM_STEP = 1 / 16
 
 const FOLLOW_K = 0.1
 const FOLLOW_DAMP = 0.72
-const RUN_ZOOM_NEAR = 1.0
-const RUN_ZOOM_FAR = 0.7
+/**
+ * How far the camera pulls back at full speed, as a fraction of the zoom the
+ * run *started* at.
+ *
+ * Relative, not absolute. It used to ease toward a fixed 1.0, which meant
+ * pressing play on a phone framed at the 0.5 fit-zoom roughly doubled the view
+ * in the first second — unasked, every run. Anchoring to the starting zoom
+ * makes the pull-back a modulation of what you were already looking at.
+ *
+ * 0.85 rather than 0.7: the scenery and the scarf already carry speed, and a
+ * third simultaneous speed signal that also moves the camera is one too many.
+ */
+const RUN_ZOOM_FAR_FACTOR = 0.85
 const RUN_ZOOM_AT_SPEED = 12
 
 export type Camera = {
@@ -80,8 +91,13 @@ export function visibleRect(
 }
 
 /**
- * Critically damped follow on a target, plus a speed-linked zoom-out so fast
+ * Critically damped follow on a target, plus a speed-linked pull-back so fast
  * sections stay readable.
+ *
+ * `baseZoom` is the zoom the run started at. The caller stops calling this the
+ * moment the player touches the camera — a follow that keeps hauling the view
+ * back to the sled while someone is trying to look at their own track is worse
+ * than no follow at all.
  */
 export function follow(
   cam: Camera,
@@ -89,6 +105,7 @@ export function follow(
   targetY: number,
   speed: number,
   reducedMotion: boolean,
+  baseZoom: number,
 ): void {
   cam.vx = (cam.vx + (targetX - cam.x) * FOLLOW_K) * FOLLOW_DAMP
   cam.vy = (cam.vy + (targetY - cam.y) * FOLLOW_K) * FOLLOW_DAMP
@@ -97,7 +114,7 @@ export function follow(
 
   if (reducedMotion) return
   const t = Math.min(speed / RUN_ZOOM_AT_SPEED, 1)
-  const want = RUN_ZOOM_NEAR + (RUN_ZOOM_FAR - RUN_ZOOM_NEAR) * t
+  const want = baseZoom * (1 + (RUN_ZOOM_FAR_FACTOR - 1) * t)
   cam.zoom += (want - cam.zoom) * 0.05
 }
 

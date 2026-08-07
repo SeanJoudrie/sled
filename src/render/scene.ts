@@ -241,33 +241,51 @@ function drawRider(
   ctx.arc(head.x, head.y, 5, 0, Math.PI * 2)
   ctx.stroke()
 
-  // What happened, written next to the head. Crash and off-track are both bad
-  // news and both red; finishing is not, and must never borrow their marks —
-  // the first version tested `state !== 'running'` and stamped a confused red
-  // `??` on the one outcome the player was aiming for.
-  if (rig.state === 'crashed' || rig.state === 'gone') {
-    ctx.fillStyle = colour('--sled-red')
-    ctx.font = 'bold 18px ui-monospace, monospace'
-    ctx.fillText(rig.state === 'crashed' ? '!!' : '??', head.x + 9, head.y - 9)
-  } else if (rig.state === 'finished') {
-    // Three short rays, the way a kid draws something being pleased with itself.
-    //
-    // Knocked out in paper first, because the rig stops *on* the tape — a win is
-    // the one state where the rider is guaranteed to be standing on a green
-    // band, and green rays on green tape are invisible at exactly the moment
-    // they need to be read.
+  // What happened, drawn next to the head.
+  //
+  // All three are sketched, not typed. Crash and off-track used to be `!!` and
+  // `??` in bold monospace — ASCII punctuation at the two moments the page most
+  // wants to look hand-made, in a product whose entire art direction is that a
+  // kid drew this. Each is knocked out in paper first, because the rider can end
+  // on top of a highlighter band and a thin mark on a coloured wash is invisible
+  // exactly when it needs reading.
+  if (rig.state !== 'running') {
     ctx.beginPath()
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI / 2 + (i - 1) * 0.62
-      const dx = Math.cos(a)
-      const dy = Math.sin(a)
-      ctx.moveTo(head.x + dx * 9, head.y + dy * 9)
-      ctx.lineTo(head.x + dx * 17, head.y + dy * 17)
+    if (rig.state === 'crashed') {
+      // An impact burst: rays all round, uneven, the way you scribble a bang.
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + 0.3
+        const dx = Math.cos(a)
+        const dy = Math.sin(a)
+        const far = i % 2 === 0 ? 19 : 14
+        ctx.moveTo(head.x + dx * 9, head.y + dy * 9)
+        ctx.lineTo(head.x + dx * far, head.y + dy * far)
+      }
+    } else if (rig.state === 'gone') {
+      // Off the page: a dashed fall away downward, and nothing to hit.
+      for (let i = 0; i < 3; i++) {
+        const y = head.y + 12 + i * 8
+        ctx.moveTo(head.x + 11, y)
+        ctx.lineTo(head.x + 11, y + 4)
+      }
+      ctx.moveTo(head.x + 7, head.y + 34)
+      ctx.lineTo(head.x + 11, head.y + 40)
+      ctx.lineTo(head.x + 15, head.y + 34)
+    } else {
+      // Three rays over the head, the way a kid draws something being pleased
+      // with itself.
+      for (let i = 0; i < 3; i++) {
+        const a = -Math.PI / 2 + (i - 1) * 0.62
+        const dx = Math.cos(a)
+        const dy = Math.sin(a)
+        ctx.moveTo(head.x + dx * 9, head.y + dy * 9)
+        ctx.lineTo(head.x + dx * 17, head.y + dy * 17)
+      }
     }
     ctx.strokeStyle = colour('--sled-paper')
     ctx.lineWidth = 5
     ctx.stroke()
-    ctx.strokeStyle = colour('--sled-green')
+    ctx.strokeStyle = rig.state === 'finished' ? colour('--sled-green') : colour('--sled-red')
     ctx.lineWidth = 2.2
     ctx.stroke()
   }
