@@ -21,8 +21,21 @@ export const COMMIT_DISTANCE = 14
 /** Undo depth. Deep enough that nobody hits the bottom by accident. */
 export const HISTORY_LIMIT = 100
 
-/** How near the cursor has to pass a stroke to erase it, in world units. */
-export const ERASE_RADIUS = 12
+/** Shorter than this and it was a tap, not a line. World units. */
+export const MIN_STROKE_LENGTH = 4
+
+/**
+ * The eraser's reach, in **screen** pixels.
+ *
+ * Screen, not world, so it is the same size under your finger at every zoom.
+ * As a world constant it was 12 units — which is 6 px across at the zoom the
+ * example track opens at, accurate and completely unusable. Callers divide by
+ * the current zoom to get the world radius.
+ *
+ * This is a tool, not physics: it may depend on the camera. Nothing in `sim/`
+ * can.
+ */
+export const ERASE_SCREEN_R = 15
 
 type Snapshot = {
   strokes: readonly Stroke[]
@@ -182,6 +195,17 @@ export class Model {
     if (dx * dx + dy * dy > 1) live.pts.push([cursorX, cursorY])
     if (live.pts.length < 2) return false
 
+    // A tap is not a stroke. Without this, every tap on the page — including
+    // the two that make a double tap — leaves an invisible one-pixel line that
+    // still collides, and the page fills with debris you cannot see to erase.
+    let length = 0
+    for (let i = 1; i < live.pts.length; i++) {
+      const ax = live.pts[i]![0] - live.pts[i - 1]![0]
+      const ay = live.pts[i]![1] - live.pts[i - 1]![1]
+      length += Math.sqrt(ax * ax + ay * ay)
+    }
+    if (length < MIN_STROKE_LENGTH) return false
+
     this.snapshot()
     this.strokes.push({ brush: live.brush, pts: live.pts })
     return true
@@ -193,8 +217,8 @@ export class Model {
 
   // ── erasing ────────────────────────────────────────────────────────────────
 
-  /** Which strokes the eraser would take at this point. */
-  strokesAt(x: number, y: number, radius = ERASE_RADIUS): Stroke[] {
+  /** Which strokes the eraser would take at this point. Radius in world units. */
+  strokesAt(x: number, y: number, radius: number): Stroke[] {
     const r2 = radius * radius
     return this.strokes.filter((s) => distToStroke2(s, x, y) <= r2)
   }

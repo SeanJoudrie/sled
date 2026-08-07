@@ -50,13 +50,25 @@ vectors and complex multiplication.
 Ruled notebook paper, aged very slightly. Three layers, back to front:
 
 1. **Paper ground**, filled flat.
-2. **Grain and creases**, generated once at load into an offscreen 256×256
-   canvas of value noise, tiled, at **3% maximum contrast**, plus two or three
-   soft diagonal crease bands at 2%. Never animated, never regenerated. If you
-   can see it as texture rather than feel it as paper, it is too strong.
-3. **Rules**, horizontal every 28 px, plus one vertical margin rule at x = 96.
+2. **Grain**, generated once at load into an offscreen 256×256 canvas of value
+   noise, tiled, at **3% maximum contrast**. Never animated, never regenerated.
+   Screen space — it is the sheet everything is printed on, and sliding it under
+   the camera turns a still texture into visible crawl.
+3. **Folds**, in **world space**, so they belong to the page and pan with it. A
+   fold is a pair — a soft shadow at ≤2.5% and a thin catch of light on one side
+   — because that is what a crease does to a flat surface. Horizontals every
+   1120 world px, verticals every 1680, roughly a sheet folded in thirds.
+   An earlier version put two diagonal bands in *screen* space, which made them
+   the one element on the page that visibly did not belong to it.
+
+   If you can see any of this as texture rather than feel it as paper, it is
+   too strong.
+4. **Rules**, horizontal every 28 px, plus one vertical margin rule at x = 96.
    Both live in **world space** and pan with the paper, so the level sits *on*
-   the page rather than in front of it.
+   the page rather than in front of it. They fade out as their on-screen spacing
+   drops below ~17 px: zoomed out far enough, 28 px rules land a few pixels
+   apart and the page stops reading as ruled paper and starts reading as
+   corduroy.
 
 ### 3.2 The pencil case — the entire palette
 

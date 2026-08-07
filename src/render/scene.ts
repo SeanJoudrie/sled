@@ -30,6 +30,8 @@ export type SceneInput = {
   preview: Stroke | null
   /** Strokes the eraser is about to remove, drawn ghosted. */
   doomed: ReadonlySet<Stroke>
+  /** Where the eraser is and how wide, in world units. Null unless erasing. */
+  eraser: { x: number; y: number; r: number } | null
   startX: number
   startY: number
   colour: Palette
@@ -48,11 +50,12 @@ export function drawScene(s: SceneInput): void {
   }
 
   drawPaper(ctx, w, h, colour('--sled-paper'))
-  drawCreases(ctx, w, h, colour('--sled-grain'))
 
-  // Rules are *printed*, so they go down before anything drawn by hand.
+  // Folds and rules both belong to the sheet, so both pan with it.
   const r = visibleRect(cam, w, h)
   world()
+  drawCreases(ctx, r.left, r.top, r.right, r.bottom, cam.zoom, colour('--sled-grain'), colour('--sled-paper'))
+  // Rules are *printed*, so they go down before anything drawn by hand.
   drawRules(ctx, r.left, r.top, r.right, r.bottom, cam.zoom, colour('--sled-rule'), colour('--sled-margin-rule'))
   ctx.restore()
 
@@ -78,6 +81,7 @@ export function drawScene(s: SceneInput): void {
   if (s.world) drawStamps(ctx, s.world, colour)
   drawStartFlag(ctx, s.startX, s.startY, colour('--sled-ink'))
   if (s.rig) drawRider(ctx, s.rig, colour)
+  if (s.eraser) drawEraser(ctx, s.eraser, cam.zoom, colour('--sled-ink'))
 
   ctx.restore()
 
@@ -126,6 +130,30 @@ function drawStamps(ctx: CanvasRenderingContext2D, world: World, colour: Palette
       line(ctx, wd.bx, wd.by, hx + wd.uy * 7, hy - wd.ux * 7)
     }
   }
+  ctx.restore()
+}
+
+/**
+ * The eraser's reach.
+ *
+ * It has always been 12 world units, and it has always been invisible — you
+ * erased by guesswork and found out what you hit afterwards. Shown only while
+ * the eraser is the active tool, so it costs nothing the rest of the time.
+ */
+function drawEraser(
+  ctx: CanvasRenderingContext2D,
+  e: { x: number; y: number; r: number },
+  zoom: number,
+  ink: string,
+): void {
+  ctx.save()
+  ctx.globalAlpha = 0.5
+  ctx.strokeStyle = ink
+  ctx.lineWidth = 1.2 / zoom
+  ctx.setLineDash([4 / zoom, 4 / zoom])
+  ctx.beginPath()
+  ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2)
+  ctx.stroke()
   ctx.restore()
 }
 

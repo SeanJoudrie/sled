@@ -104,11 +104,53 @@ export function drawHighlighter(ctx: CanvasRenderingContext2D, s: Stroke, colour
   ctx.restore()
 }
 
+/** How far below the surface the water tint reaches before fading out, px. */
+const WATER_DEPTH = 170
+
 /**
- * Every stroke, highlighter pass first.
+ * The body of a water section.
  *
- * Two passes rather than one loop: an ink line crossing a boost has to sit on
- * top of it, and that is not something per-stroke ordering can express.
+ * Water is a half-plane in the simulation — everything below the line is wet,
+ * forever — but it rendered as a single thin blue stroke, which reads as a
+ * tripwire rather than as something you sink into. This fills beneath the
+ * surface and fades out, so the mechanic is visible without claiming a bottom
+ * the physics does not have.
+ */
+export function drawWaterBody(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  colour: string,
+): void {
+  if (s.pts.length < 2) return
+  let lowest = -Infinity
+  for (const [, y] of s.pts) if (y > lowest) lowest = y
+
+  const grad = ctx.createLinearGradient(0, lowest, 0, lowest + WATER_DEPTH)
+  grad.addColorStop(0, colour)
+  grad.addColorStop(1, 'transparent')
+
+  ctx.save()
+  ctx.globalAlpha = 0.11
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.fillStyle = grad
+  ctx.beginPath()
+  ctx.moveTo(s.pts[0]![0], s.pts[0]![1])
+  for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i]![0], s.pts[i]![1])
+  // Close down the far edge, along the bottom, and back up the near edge.
+  ctx.lineTo(s.pts[s.pts.length - 1]![0], lowest + WATER_DEPTH)
+  ctx.lineTo(s.pts[0]![0], lowest + WATER_DEPTH)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+/**
+ * Every stroke, in three passes.
+ *
+ * Water bodies, then highlighter, then ink. Separate passes rather than one
+ * loop: an ink line crossing a boost has to sit on top of it, and water has to
+ * sit under everything, and that is not something per-stroke ordering can
+ * express.
  */
 export function drawStrokes(
   ctx: CanvasRenderingContext2D,
@@ -116,6 +158,10 @@ export function drawStrokes(
   brushes: readonly BrushDef[],
   colour: (token: string) => string,
 ): void {
+  for (const s of strokes) {
+    const b = brushes[s.brush]
+    if (b?.water) drawWaterBody(ctx, s, colour(b.token))
+  }
   for (const s of strokes) {
     const b = brushes[s.brush]
     if (b?.cls === 'highlighter') drawHighlighter(ctx, s, colour(b.token))
