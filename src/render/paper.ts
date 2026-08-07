@@ -94,23 +94,70 @@ export function drawPaper(
   }
 }
 
-/** Two soft diagonal crease bands, at 2%. Screen space, like the grain. */
+/** How far apart the folds sit, in world units. Roughly a sheet folded in thirds. */
+const FOLD_SPACING_Y = 1120
+const FOLD_SPACING_X = 1680
+
+/**
+ * Folds and creases — the thing that makes it a *sheet* rather than a colour.
+ *
+ * Drawn in **world space**, which is the whole point. The first version put
+ * two diagonal bands in screen space, so they slid across the paper as you
+ * panned: the one element on the page that visibly did not belong to it.
+ *
+ * A fold is a pair, not a line — a soft shadow on one side and a thin catch of
+ * light on the other, which is what a crease actually does to a flat surface.
+ * Everything here is at or under 2.5%, so it should read as *feel*, not texture.
+ */
 export function drawCreases(
   ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  zoom: number,
   grain: string,
+  paper: string,
 ): void {
   ctx.save()
-  ctx.globalAlpha = 0.02
+
+  const shadow = Math.max(6, 26 / zoom)
+  const firstY = Math.floor(top / FOLD_SPACING_Y) * FOLD_SPACING_Y
+  const firstX = Math.floor(left / FOLD_SPACING_X) * FOLD_SPACING_X
+
+  for (let y = firstY; y <= bottom + FOLD_SPACING_Y; y += FOLD_SPACING_Y) {
+    // A horizontal fold is never quite straight, and never quite level.
+    const sag = ((y / FOLD_SPACING_Y) % 2 === 0 ? 1 : -1) * 5
+
+    ctx.globalAlpha = 0.025
+    ctx.strokeStyle = grain
+    ctx.lineWidth = shadow
+    ctx.beginPath()
+    ctx.moveTo(left, y)
+    ctx.quadraticCurveTo((left + right) / 2, y + sag, right, y + sag * 0.4)
+    ctx.stroke()
+
+    // The lit side of the crease, one hairline above the shadow.
+    ctx.globalAlpha = 0.5
+    ctx.strokeStyle = paper
+    ctx.lineWidth = Math.max(0.6, 1.6 / zoom)
+    ctx.beginPath()
+    ctx.moveTo(left, y - shadow * 0.32)
+    ctx.quadraticCurveTo((left + right) / 2, y + sag - shadow * 0.32, right, y + sag * 0.4 - shadow * 0.32)
+    ctx.stroke()
+  }
+
+  // One vertical fold per sheet-width, softer than the horizontals.
+  ctx.globalAlpha = 0.018
   ctx.strokeStyle = grain
-  ctx.lineWidth = 90
+  ctx.lineWidth = shadow * 1.15
   ctx.beginPath()
-  ctx.moveTo(-100, h * 0.22)
-  ctx.lineTo(w + 100, h * 0.05)
-  ctx.moveTo(-100, h * 0.78)
-  ctx.lineTo(w + 100, h * 0.96)
+  for (let x = firstX; x <= right + FOLD_SPACING_X; x += FOLD_SPACING_X) {
+    ctx.moveTo(x, top)
+    ctx.quadraticCurveTo(x + 7, (top + bottom) / 2, x, bottom)
+  }
   ctx.stroke()
+
   ctx.restore()
 }
 

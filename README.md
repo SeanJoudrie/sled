@@ -54,6 +54,7 @@ class. Picking one hands you back the pencil.
 | `Esc` | back to editing |
 | `⌘Z` / `⇧⌘Z` | undo / redo, 100 deep, whole strokes |
 | wheel or pinch | zoom, `0.25×`–`4×` in 1/16 steps |
+| double-tap | reframe the level |
 
 Drawing a boost line right-to-left boosts **backwards** — the impulse runs along
 the segment as drawn. That is a feature, and the sheet says so.

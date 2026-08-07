@@ -18,7 +18,7 @@ import type { Stroke } from './level/stroke.ts'
 import { encodeLevel, readHash } from './level/format.ts'
 import { fnv1a } from './level/prng.ts'
 import { fixtureDescent } from './level/fixtures.ts'
-import { Model } from './editor/model.ts'
+import { ERASE_SCREEN_R, Model } from './editor/model.ts'
 import { buildControls } from './editor/toolbar.ts'
 import type { Action, ToolId } from './editor/toolbar.ts'
 import { makeCamera, follow, quantiseZoom, screenToWorld, settle, zoomAt } from './render/camera.ts'
@@ -122,17 +122,6 @@ function scheduleShareSync(): void {
 }
 
 /**
- * Frame the whole level.
- *
- * Loading at zoom 1 centred on the flag showed a *fragment* of the track on a
- * phone — a line leaving the right edge with no way to tell how long the hill
- * was, or that there was a hill. Fitting the content is the difference between
- * a first screen that explains itself and one that looks broken.
- *
- * Never zooms past 1: "fit" means see all of it, not magnify a short track
- * until the paper grain is the size of gravel.
- */
-/**
  * Below this, "fitting" stops being useful.
  *
  * The example track is 2200 px wide. Fitting all of it on a 390 px phone works
@@ -142,6 +131,13 @@ function scheduleShareSync(): void {
  */
 const MIN_FIT_ZOOM = 0.5
 
+/**
+ * Frame the level: on load, and on a double tap.
+ *
+ * Opening at zoom 1 centred on the flag showed a *fragment* of the track on a
+ * phone — a line leaving the right edge with no way to tell there was a hill.
+ * Never zooms past 1, and never below MIN_FIT_ZOOM.
+ */
 function fitCamera(): void {
   const b = model.contentBounds()
   const w = window.innerWidth
@@ -239,6 +235,31 @@ function localPoint(e: PointerEvent): { x: number; y: number } {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
+/**
+ * Double-tap anywhere to reframe the level.
+ *
+ * Pan far enough and nothing brought you back — you were lost on an infinite
+ * sheet of paper with no landmark. This reuses a gesture that previously did
+ * nothing at all, so it adds no control and takes none away.
+ *
+ * Detected on pointer *up*, not down, and only when both presses were taps
+ * rather than drags. Deciding on the way down cannot tell a tap from the start
+ * of a drag, so two quick pans that happen to begin near each other read as a
+ * double tap and reframe the page out from under you mid-gesture.
+ */
+const DOUBLE_TAP_MS = 320
+const DOUBLE_TAP_SLOP = 34
+/** Past this much movement, or this long held, a press was a drag. */
+const TAP_SLOP = 9
+const TAP_MAX_MS = 400
+
+let pressX = 0
+let pressY = 0
+let pressT = 0
+let lastTapAt = 0
+let lastTapX = 0
+let lastTapY = 0
+
 canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId)
   const p = localPoint(e)
@@ -266,6 +287,10 @@ canvas.addEventListener('pointerdown', (e) => {
     stopRun()
     return
   }
+
+  pressX = p.x
+  pressY = p.y
+  pressT = e.timeStamp
 
   if (forcePan || (!forceErase && tool.kind === 'pan')) {
     gesture = { kind: 'pan', lastX: p.x, lastY: p.y }
@@ -334,6 +359,29 @@ function endPointer(e: PointerEvent): void {
   }
 
   gesture = null
+
+  // Double tap, decided here so a drag can never be mistaken for a tap.
+  const movedX = p.x - pressX
+  const movedY = p.y - pressY
+  const wasTap =
+    Math.sqrt(movedX * movedX + movedY * movedY) < TAP_SLOP &&
+    e.timeStamp - pressT < TAP_MAX_MS
+  if (wasTap) {
+    const near =
+      Math.abs(p.x - lastTapX) < DOUBLE_TAP_SLOP && Math.abs(p.y - lastTapY) < DOUBLE_TAP_SLOP
+    if (near && e.timeStamp - lastTapAt < DOUBLE_TAP_MS) {
+      lastTapAt = 0 // consume it, so a triple tap is not two fits in a row
+      fitCamera()
+      announce('Reframed the level.')
+    } else {
+      lastTapAt = e.timeStamp
+      lastTapX = p.x
+      lastTapY = p.y
+    }
+  } else {
+    lastTapAt = 0
+  }
+
   setCursorClass()
   sync()
 }
@@ -341,9 +389,12 @@ function endPointer(e: PointerEvent): void {
 canvas.addEventListener('pointerup', endPointer)
 canvas.addEventListener('pointercancel', endPointer)
 
+/** The eraser's world radius at the current zoom — constant size on screen. */
+const eraseRadius = (): number => ERASE_SCREEN_R / cam.zoom
+
 function collectDoomed(x: number, y: number): void {
   if (gesture?.kind !== 'erase') return
-  for (const s of model.strokesAt(x, y)) gesture.doomed.add(s)
+  for (const s of model.strokesAt(x, y, eraseRadius())) gesture.doomed.add(s)
   doomed = gesture.doomed
 }
 
@@ -602,6 +653,12 @@ function frame(now: number): void {
     rig,
     preview: mode === 'edit' ? model.previewStroke(cursor.x, cursor.y) : null,
     doomed,
+    // Only while the eraser is the live tool — including a right-drag, which
+    // erases whatever mode is selected.
+    eraser:
+      mode === 'edit' && (tool.kind === 'erase' || gesture?.kind === 'erase')
+        ? { x: cursor.x, y: cursor.y, r: eraseRadius() }
+        : null,
     startX: model.startX,
     startY: model.startY,
     colour,
