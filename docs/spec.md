@@ -182,7 +182,32 @@ track is the level.
 Scenery is decoration. Nothing about it may ever feed back into physics, and the
 seed lives outside `sim/` where CI can prove the simulation cannot reach it.
 
-### 3.6 The eraser
+### 3.6 The first five seconds
+
+The page opens on a **demo track**, not an empty sheet and not the gate's
+descent fixture.
+
+It is 520 px wide, which is deliberate and is the whole design constraint:
+`fitZoom` will not frame anything wider than about 590 px on a 390 px phone
+without dropping below a legible zoom, so anything longer gets its start framed
+and the rest cropped. The old example was 2,200 px. It taught three of eight
+brushes, hid the spikes, the water, the well and the wind off the right edge, and
+gave no indication it was holding anything back.
+
+The demo fits whole at 0.5625 on a phone and 1.0 on a desktop, touches all eight
+brushes in two and a half seconds, and **ends on the finish tape**. The old one
+ended on a kill wall, so the first thing every visitor watched was a failure and
+almost nobody discovered that winning was a thing.
+
+Check 16 asserts all of it — fits whole, ends `finished`, every brush present —
+and imports `fitZoom` from the camera rather than reimplementing it, because a
+copy in the test would drift from the app and start passing on a framing nobody
+ships.
+
+One level was doing two jobs badly. The gate fixtures exist to cover mechanics;
+this one exists to be somebody's first impression.
+
+### 3.7 The eraser
 
 The eraser takes the **segments** it touches and splits the stroke, leaving every
 maximal run of untouched segments as a stroke in its own right. A stroke whose
@@ -203,7 +228,7 @@ What is about to go is ghosted at 22%, split at exactly the same segment
 boundaries the erase will use. Ghosting the whole stroke would promise to remove
 a line the eraser is only going to trim.
 
-### 3.7 The camera during a run
+### 3.8 The camera during a run
 
 The camera follows the sled, critically damped, and eases toward **0.85× the
 zoom the run started at** as speed rises.
@@ -223,7 +248,7 @@ gesture available while watching was the one that stopped the thing you were
 watching — no panning, no looking ahead at the jump you were about to hit. In a
 loop that is build → watch → adjust, *watch* was the step with no controls in it.
 
-### 3.8 The rider
+### 3.9 The rider
 
 A hatted figure sitting on a toboggan: a runner with a small upturn at the front,
 one leg stroke, a torso, an arm to the handle, a head and a woolly hat.
@@ -251,7 +276,7 @@ and running a 3 px torso into a 5 px circle filled the head in.
 The constraint overlay lives on under `?debug`, because a rig that is folding or
 mirroring should be visible rather than inferred.
 
-### 3.9 The scarf
+### 3.10 The scarf
 
 A five-link Verlet chain pinned to the rider's head, stepped in **render space**
 at frame rate, drawn in red. Gravity `0.42`, drag `0.86`, and a wind impulse of
@@ -636,7 +661,7 @@ once at page load, so the margin is different every visit (§3.5).
 4. ✅ Editor: draw, undo, erase, pan, zoom, play, reset.
 5. ✅ All eight brushes — one properties table, eight rows, so this landed with
    the editor rather than after it.
-6. ⬜ Rider system + click-to-cycle. The figure is drawn (§3.8) but it is one
+6. ⬜ Rider system + click-to-cycle. The figure is drawn (§3.9) but it is one
    fixed drawing, not a manifest — nothing can be swapped yet.
 7. ⬜ The three stamps in the editor. Portals last — the only subtle maths.
    They already run and round-trip; there is just no UI to place one.

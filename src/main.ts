@@ -16,12 +16,12 @@ import {
 import type { BrushId, Level, Rig, World } from './sim/index.ts'
 import { encodeLevel, readHash } from './level/format.ts'
 import { fnv1a } from './level/prng.ts'
-import { fixtureDescent } from './level/fixtures.ts'
+import { fixtureDemo } from './level/fixtures.ts'
 import { ERASE_SCREEN_R, Model } from './editor/model.ts'
 import type { Doomed } from './editor/model.ts'
 import { buildControls } from './editor/toolbar.ts'
 import type { Action, ToolId } from './editor/toolbar.ts'
-import { makeCamera, follow, quantiseZoom, screenToWorld, settle, zoomAt } from './render/camera.ts'
+import { fitZoom, makeCamera, follow, screenToWorld, settle, zoomAt } from './render/camera.ts'
 import { drawScene } from './render/scene.ts'
 import { initGrain } from './render/paper.ts'
 import { seedParallax } from './render/parallax.ts'
@@ -177,16 +177,6 @@ function scheduleShareSync(): void {
 }
 
 /**
- * Below this, "fitting" stops being useful.
- *
- * The example track is 2200 px wide. Fitting all of it on a 390 px phone works
- * out at zoom 0.125, which makes the sled three pixels tall and squeezes the
- * 28 px ruling into corduroy. Seeing the whole level is worth less than being
- * able to see anything in it.
- */
-const MIN_FIT_ZOOM = 0.5
-
-/**
  * Frame the level: on load, and on a double tap.
  *
  * Opening at zoom 1 centred on the flag showed a *fragment* of the track on a
@@ -208,23 +198,15 @@ function fitCamera(): void {
     return
   }
 
-  // The corner clusters overlay the canvas, so the usable area is smaller than
-  // the viewport. Proportional, or a phone loses half its width to padding.
-  const padX = Math.min(80, w * 0.12)
-  const padY = Math.min(96, h * 0.14)
-  const availW = Math.max(140, w - padX * 2)
-  const availH = Math.max(140, h - padY * 2)
-  const fit = Math.min(availW / Math.max(cw, 1), availH / Math.max(ch, 1))
-
-  if (fit >= MIN_FIT_ZOOM) {
+  const f = fitZoom(w, h, cw, ch)
+  cam.zoom = f.zoom
+  if (f.whole) {
     // Short enough to show whole. Centre on the content.
-    cam.zoom = quantiseZoom(Math.min(fit, 1))
     cam.x = (b.minX + b.maxX) / 2
     cam.y = (b.minY + b.maxY) / 2
   } else {
     // Too long to frame at a readable size, so frame the *start* instead: the
     // flag sits left of centre and high, leaving the run ahead on screen.
-    cam.zoom = MIN_FIT_ZOOM
     cam.x = model.startX + (w * 0.22) / cam.zoom
     cam.y = model.startY + (h * 0.12) / cam.zoom
   }
@@ -835,11 +817,11 @@ if (incoming.kind === 'ok') {
   // Load something usable, but leave the broken hash in the address bar: it is
   // the only copy of whatever they were sent, and syncing over it would destroy
   // it. The next edit takes the bar over naturally.
-  loadLevel(fixtureDescent(), true, false)
+  loadLevel(fixtureDemo(), true, false)
   toast("That link looks damaged — showing the example instead")
   announce('That share link could not be read. The example track is loaded instead.')
 } else {
-  loadLevel(fixtureDescent(), true)
+  loadLevel(fixtureDemo(), true)
   announce('Example track loaded. Draw over it, or clear the page.')
 }
 setCursorClass()

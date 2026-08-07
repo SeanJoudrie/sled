@@ -1,9 +1,14 @@
 /**
- * The two fixture levels.
+ * The fixture levels.
  *
- * Shared by the determinism gate and the tuning harness deliberately: if the
- * thing you watch and the thing CI checks are different tracks, a feel change
- * can quietly break a gate that still reports green on its own private level.
+ * Two of them are gate fixtures, shared with the tuning harness deliberately: if
+ * the thing you watch and the thing CI checks are different tracks, a feel
+ * change can quietly break a gate that still reports green on its own private
+ * level.
+ *
+ * The third, `fixtureDemo`, is the track a first visitor lands on. It is checked
+ * too — check 16 asserts it still fits a phone whole and still ends in a win,
+ * because the first five seconds is the one thing nothing else tests.
  *
  * All coordinates are exact multiples of 0.5 and all wind strengths exact in
  * thousandths, so a wire round-trip is lossless and can be compared deeply.
@@ -21,8 +26,60 @@ const L = (
 ): [BrushId, number, number, number, number] => [brush, x1, y1, x2, y2]
 
 /**
- * A long descent, touching every one of the seven brushes and both force
+ * The track a first visitor lands on.
+ *
+ * Deliberately **short**, and that is the whole point. The descent below is
+ * 2200 px wide, and `fitZoom` will not frame anything wider than about 590 px on
+ * a 390 px phone without dropping below a legible zoom — so it framed the start
+ * instead and cropped the rest. The result was a tutorial that taught three of
+ * eight brushes, hid the spikes, the water, the well and the wind off the right
+ * edge, and gave no indication it was holding anything back.
+ *
+ * This one is 520 px wide and fits **whole** on a phone at 0.5625 and on a
+ * desktop at 1.0. It touches all eight brushes in two and a half seconds, and it
+ * ends on the finish tape — the previous example ended on a kill wall, so the
+ * first thing every new visitor watched was a failure, and almost nobody ever
+ * saw that winning was a thing.
+ *
+ * The gate keeps using the two fixtures below. They exist to cover mechanics;
+ * this one exists to be someone's first five seconds. One level was doing both
+ * jobs badly.
+ *
+ * The water pool is genuinely local — `submerged` bounds the half-plane to the
+ * segment's own x span — so it sits under the ice run as something to look at
+ * rather than something the sled quietly swims through.
+ */
+export function fixtureDemo(): Level {
+  return {
+    v: 1,
+    r: [0, 0, 0, 0],
+    s: [36, 14],
+    l: [
+      L(BRUSH.INK, 0, 0, 110, 64),
+      L(BRUSH.ICE, 110, 64, 230, 132),
+      L(BRUSH.INK, 230, 132, 270, 150),
+      L(BRUSH.TAR, 270, 150, 330, 168),
+      L(BRUSH.INK, 330, 168, 360, 178),
+      L(BRUSH.BOOST, 360, 178, 440, 202),
+      L(BRUSH.INK, 440, 202, 520, 224),
+      // Below the track, not on it: red should read as "avoid" before anyone
+      // draws with it.
+      L(BRUSH.SPIKES, 250, 250, 330, 250),
+      L(BRUSH.WATER, 120, 300, 240, 300),
+      L(BRUSH.FINISH, 500, 170, 500, 270),
+      L(BRUSH.SCENERY, 70, -46, 132, -74),
+    ],
+    p: [],
+    g: [],
+    w: [],
+  }
+}
+
+/**
+ * A long descent, touching every one of the physical brushes and both force
  * stamps. Ends on a kill wall at the bottom.
+ *
+ * Gate fixture. Nobody is shown this on load any more — see `fixtureDemo`.
  *
  * The start flag sits *on* the line, not before it. The sled is 20 px long, so
  * a flag near the start of a track leaves the tail hanging off the end with
@@ -49,7 +106,7 @@ export function fixtureDescent(): Level {
       // A wall at the end of the floor, so the run ends on a runner hitting a
       // kill line rather than the head clipping one on the way past — the
       // mechanic is contact by any point, and this pins the common case.
-      L(BRUSH.KILL, 2200, 380, 2200, 480),
+      L(BRUSH.SPIKES, 2200, 380, 2200, 480),
     ],
     p: [],
     g: [[900, 100, 600]],
