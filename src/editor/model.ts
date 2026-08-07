@@ -13,7 +13,16 @@
 import type { BrushId, Level } from '../sim/index.ts'
 import { emptyLevel } from '../sim/index.ts'
 import type { Stroke } from '../level/stroke.ts'
-import { distToStroke2, linesToStrokes, strokesToLines } from '../level/stroke.ts'
+import { linesToStrokes, segmentsNear, splitStroke, strokesToLines } from '../level/stroke.ts'
+
+/**
+ * What an erase gesture has collected so far: for each stroke it has touched,
+ * which of that stroke's segments are going.
+ *
+ * A Map and a Set are fine here — the determinism law governs `sim/`, and the
+ * editor never feeds iteration order into a run.
+ */
+export type Doomed = Map<Stroke, Set<number>>
 
 /** One segment committed per this much cursor travel, in world units. */
 export const COMMIT_DISTANCE = 14
@@ -217,17 +226,53 @@ export class Model {
 
   // ── erasing ────────────────────────────────────────────────────────────────
 
-  /** Which strokes the eraser would take at this point. Radius in world units. */
-  strokesAt(x: number, y: number, radius: number): Stroke[] {
+  /**
+   * Add every segment within `radius` of the point to the running set.
+   *
+   * Accumulates across a whole drag rather than resolving per move, so what you
+   * see ghosted is exactly what lifting your finger will take.
+   */
+  collectSegments(x: number, y: number, radius: number, into: Doomed): void {
     const r2 = radius * radius
-    return this.strokes.filter((s) => distToStroke2(s, x, y) <= r2)
+    for (const s of this.strokes) {
+      const hits = segmentsNear(s, x, y, r2)
+      if (hits.length === 0) continue
+      let set = into.get(s)
+      if (!set) {
+        set = new Set()
+        into.set(s, set)
+      }
+      for (const j of hits) set.add(j)
+    }
   }
 
-  /** Remove whole strokes. One snapshot per erase gesture, not per stroke. */
-  erase(targets: ReadonlySet<Stroke>): boolean {
-    if (!targets.size) return false
+  /**
+   * Remove the touched segments, keeping whatever is left of each stroke.
+   *
+   * One snapshot per erase gesture, not per stroke and not per segment — the
+   * unit of undo is the drag, which is what a person thinks they did.
+   */
+  erase(doomed: ReadonlyMap<Stroke, ReadonlySet<number>>): boolean {
+    if (doomed.size === 0) return false
+
+    const next: Stroke[] = []
+    let changed = false
+    for (const s of this.strokes) {
+      const segs = doomed.get(s)
+      if (!segs || segs.size === 0) {
+        next.push(s)
+        continue
+      }
+      changed = true
+      // A stroke whose every segment was touched contributes nothing, which is
+      // how a whole line still disappears when you scrub the whole thing.
+      next.push(...splitStroke(s, segs).keep)
+    }
+    if (!changed) return false
+
+    // Snapshot before assigning: `capture` reads the live array.
     this.snapshot()
-    this.strokes = this.strokes.filter((s) => !targets.has(s))
+    this.strokes = next
     return true
   }
 
