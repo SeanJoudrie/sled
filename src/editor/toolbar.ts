@@ -105,9 +105,17 @@ export function buildControls(
   })
   const moreBtn = mk(els.bl, 'small', 'More', icon('more'), () => toggleSheet('more'))
 
-  // ── bottom right: run it ───────────────────────────────────────────────────
+  // ── bottom right: run it, and send it ──────────────────────────────────────
+  //
+  // Share and Reset take turns in the same slot. Share was third in the "More"
+  // sheet next to the destructive action, which is a strange place for the
+  // product's central verb — a level *is* a link you send someone, and the whole
+  // wire format exists to serve that. Reset only does anything during a run, and
+  // was spending the rest of the session as a greyed-out circle. Swapping them
+  // costs nothing at rest and puts the core action on screen.
   const playBtn = mk(els.br, 'primary', 'Play', icon('play'), () => h.onAction('play'))
   const resetBtn = mk(els.br, 'small', 'Reset', icon('reset'), () => h.onAction('reset'))
+  const shareBtn = mk(els.br, 'small', 'Copy share link', icon('share'), () => h.onAction('share'))
 
   // ── the sheet ──────────────────────────────────────────────────────────────
   let openSheet: 'material' | 'more' | null = null
@@ -127,7 +135,6 @@ export function buildControls(
     }
     openSheet = which
     els.sheet.hidden = false
-    els.sheet.classList.remove('right')
     materialBtn.setAttribute('aria-expanded', String(which === 'material'))
     moreBtn.setAttribute('aria-expanded', String(which === 'more'))
     renderSheet()
@@ -195,14 +202,6 @@ export function buildControls(
         },
       )
       if (current && !current.canClear) clearRow.disabled = true
-      row(
-        `<span class="sw glyph">${icon('share')}</span><span class="name">Copy share link</span>`,
-        'Copy share link',
-        () => {
-          h.onAction('share')
-          closeSheet()
-        },
-      )
     }
   }
 
@@ -242,7 +241,10 @@ export function buildControls(
       playBtn.innerHTML = icon(s.playing ? 'pause' : 'play')
       playBtn.setAttribute('aria-label', playLabel)
       playBtn.title = playLabel
-      resetBtn.disabled = !s.running
+
+      // One slot, two occupants. Neither is ever present-but-useless.
+      resetBtn.hidden = !s.running
+      shareBtn.hidden = s.running
 
       if (!els.sheet.hidden) renderSheet()
     },

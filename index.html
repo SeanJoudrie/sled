@@ -19,7 +19,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Sled" />
     <meta property="og:title" content="Sled — draw a line, he rides it" />
-    <meta property="og:description" content="Doodle a hill on ruled notebook paper and watch a sled ride it. Seven pens, deterministic physics, and the whole level lives in the link." />
+    <!--
+      No countable claims in here. This said "Seven pens" for as long as there
+      were eight, in the string more people read than any other in the project —
+      a link preview is how Sled reaches anyone at all. Check 15 in the
+      determinism gate now fails the build if a pen count reappears and
+      disagrees with the brush table.
+    -->
+    <meta property="og:description" content="Doodle a hill on ruled notebook paper and watch a sled ride it. Deterministic physics, and the whole level lives in the link." />
     <meta property="og:url" content="https://seanjoudrie.github.io/sled/" />
     <meta property="og:image" content="https://seanjoudrie.github.io/sled/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -104,6 +111,10 @@
       .btn:focus-visible { outline: 2px solid var(--sled-ink); outline-offset: 3px; }
       .btn:disabled { opacity: 0.3; cursor: default; box-shadow: none; }
       .btn svg { width: 24px; height: 24px; }
+      /* `display: grid` above is an author rule, so it beats the user agent's
+         `[hidden] { display: none }` and a hidden button stays on screen. Share
+         and Reset take turns in one slot and both were visible at once. */
+      .btn[hidden] { display: none; }
 
       /* Pressed is a filled chip, not just a ring — on a phone, in sunlight, a
          1px border change is not a state you can read at a glance. */
@@ -149,7 +160,6 @@
         display: flex; flex-direction: column; gap: 2px;
       }
       .sheet[hidden] { display: none; }
-      .sheet.right { left: auto; right: var(--pad); }
 
       .row {
         display: flex; align-items: center; gap: 10px;
@@ -194,6 +204,18 @@
       }
       .hud .state { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; opacity: 0.6; }
       .hud .state[data-state="crashed"], .hud .state[data-state="gone"] { color: var(--sled-red); opacity: 1; }
+      /* Winning has to be the loudest thing in here, not the quietest. This rule
+         listed the two failures by name and finish was never added, so the one
+         outcome anyone is aiming for rendered identically to "running". */
+      .hud .state[data-state="finished"] { color: var(--sled-green); opacity: 1; }
+
+      /* Tick count is a number for whoever is tuning the physics, not for
+         whoever is riding. Kept in the DOM — it is what the checks read — and
+         shown only when asked for with ?debug. Speed appears once there is a run
+         to have a speed, so the page is quiet at rest. */
+      #tick { display: none; }
+      .hud.debug #tick { display: inline; }
+      .hud:not(.live) .speed { display: none; }
       @media (max-width: 460px) { .hud .speed { display: none; } }
 
       .toast {
@@ -217,7 +239,18 @@
     </style>
   </head>
   <body>
-    <canvas id="stage"></canvas>
+    <!--
+      The canvas announced nothing at all: no role, no name. A screen reader
+      landed on the page and found five buttons and an unlabelled graphic, with
+      no indication that the graphic was the thing the whole product is about.
+      Naming it does not make it operable from a keyboard — that is still a real
+      gap — but it stops the page pretending the canvas is decoration.
+    -->
+    <canvas
+      id="stage"
+      role="img"
+      aria-label="The page. Drag to draw a track; the sled rides what you draw."
+    ></canvas>
 
     <div class="hud">
       <span id="tick">0</span>

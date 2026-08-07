@@ -16,7 +16,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-import { BRUSH, CONTACT_R, buildWorld, spawn, step } from '../src/sim/index.ts'
+import { BRUSH, BRUSHES, CONTACT_R, buildWorld, spawn, step } from '../src/sim/index.ts'
 import { decodeLevel, encodeLevel } from '../src/level/format.ts'
 import { decorRng } from '../src/level/prng.ts'
 import { fixtureDescent, fixturePortal } from '../src/level/fixtures.ts'
@@ -342,6 +342,39 @@ check(14, 'portals · the one-way flag actually blocks the return trip', () => {
   const notes = []
   if (both < 2) notes.push(`bidirectional pair should ping-pong, saw ${both} transit(s)`)
   if (one !== 1) notes.push(`one-way pair should transit exactly once, saw ${one}`)
+  return notes.length === 0 ? true : notes.join('; ')
+})
+
+check(15, 'copy · no stale pen count in the shipped text', () => {
+  // The og:description read "Seven pens" for as long as there had been eight.
+  // That string is a link preview — with no backend and no app store, it is how
+  // this reaches anyone at all, so it is read more often than any other text in
+  // the project, by people who have not yet decided to tap. Nothing tested it
+  // and nobody looked at it.
+  //
+  // The fix was to remove the number. This stops one growing back wrong.
+  const WORDS = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+    seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  }
+  // Scoped to the meta tags, not the whole file. Prose in the README and the
+  // spec gets read by whoever is editing it, and legitimately says things like
+  // "dramatic enough to justify two brushes" — counting those is how a check
+  // earns a reputation for crying wolf and then gets ignored when it is right.
+  // The meta tags are the copy nobody ever looks at, which is the copy that
+  // needs a machine watching it.
+  const src = readFileSync(join(ROOT, 'index.html'), 'utf8')
+  const notes = []
+  for (const tag of src.matchAll(/<meta[^>]*content="([^"]*)"/gi)) {
+    for (const m of tag[1].matchAll(/\b([a-z]+|\d+)\s+(?:pens|brushes)\b/gi)) {
+      const word = m[1].toLowerCase()
+      const n = WORDS[word] ?? (/^\d+$/.test(word) ? Number(word) : null)
+      if (n === null) continue // "the brushes" and similar are not claims
+      if (n !== BRUSHES.length) {
+        notes.push(`index.html meta claims "${m[0]}" but there are ${BRUSHES.length}`)
+      }
+    }
+  }
   return notes.length === 0 ? true : notes.join('; ')
 })
 

@@ -19,7 +19,7 @@ You can draw a track and watch him ride it, and the level travels in the URL.
 | --- | --- |
 | ✅ **Sim core** | 5-point rig, 6 constraints, 8 brushes, 3 stamps, swept collision |
 | ✅ **Level format** | half-pixel integers → delta → zig-zag → varint → base64url |
-| ✅ **Determinism gate** | 14 checks, green |
+| ✅ **Determinism gate** | 15 checks, green |
 | ✅ **The page** | paper, grain and crinkle, ruled lines, ink vs highlighter, doodles |
 | ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all eight brushes |
 | ✅ **Share link** | the level lives in the URL; no backend of any kind |
@@ -33,9 +33,9 @@ Built for a phone: round buttons in the corners, nothing that needs scrolling.
 | Corner | |
 | --- | --- |
 | bottom left | **Draw** (pencil) · **Material** (shows the current pen) · **Erase** · **More** |
-| bottom right | **Play** · **Reset** |
+| bottom right | **Play**, and **Share** — which becomes **Reset** while a run is going |
 | top left | **Undo** · **Redo** |
-| top right | tick, speed, and what a drag will do |
+| top right | what a drag will do, and the speed once a run starts |
 
 **Draw is a mode.** Tap the pencil to draw; tap it again and a one-finger drag
 moves the page instead. Drawing and panning both want the same gesture, and a
@@ -66,9 +66,15 @@ class. Picking one hands you back the pencil.
 | `⌘Z` / `⇧⌘Z` | undo / redo, 100 deep, whole strokes |
 | wheel or pinch | zoom, `0.25×`–`4×` in 1/16 steps |
 | double-tap | reframe the level |
+| `?debug` | show the tick counter and publish the camera zoom |
 
 Drawing a boost line right-to-left boosts **backwards** — the impulse runs along
-the segment as drawn. That is a feature, and the sheet says so.
+the segment as drawn. That is a feature, and the chevrons drawn along the line
+say which way it went, so you do not have to remember.
+
+**You can look around during a run.** Drag to move the page and pinch to zoom
+without stopping it; the camera stops following the moment you touch it, and
+picks the sled back up on the next run. A *tap* is what returns you to editing.
 
 ## The page
 
@@ -100,7 +106,7 @@ republishes it.
 ```sh
 npm install
 npm run dev        # the editor
-npm run verify     # the determinism gate — 14 checks
+npm run verify     # the determinism gate — 15 checks
 npm test           # typecheck + verify
 npm run build      # typecheck + production build
 ```
@@ -188,6 +194,7 @@ brushes and all three stamps.
 | 12 | `sim/` imports nothing from outside itself |
 | 13 | v1 level strings still decode, and mean the same thing |
 | 14 | the portal one-way flag actually blocks the return trip |
+| 15 | no stale pen count in the shipped meta tags |
 
 Checks 9 and 10 exist because a fixture that stops covering a mechanic makes the
 other checks pass on a track that no longer exercises it — which is how a gate

@@ -277,36 +277,19 @@ export function decodeLevel(s: string): Level {
     w.push([x1, y1, x2, y2, strength, kind])
   }
 
-  return { v: 1, r: rider, s: start, l, p, g, w }
-}
+  // Nothing may be left over. A messenger that concatenates something onto the
+  // end of a URL produces exactly this, and without the check it decoded
+  // "successfully" into a level that was quietly not the one that was sent —
+  // which meant the careful damaged-link handling in `readHash` never fired for
+  // the likeliest kind of damage.
+  if (!r.done) throw new Error('level: trailing data')
 
-/**
- * Snap a level to what a round-trip would produce.
- *
- * Anything drawn at sub-half-pixel precision is quantised the moment it is
- * shared, so the editor holds the quantised form from the start rather than
- * letting a level change under its author the first time they copy the link.
- */
-export function quantiseLevel(level: Level): Level {
-  return decodeLevel(encodeLevel(level))
+  return { v: 1, r: rider, s: start, l, p, g, w }
 }
 
 // ── the share link ───────────────────────────────────────────────────────────
 
 const HASH_KEY = 'l='
-
-export function levelToHash(level: Level): string {
-  return `#${HASH_KEY}${encodeLevel(level)}`
-}
-
-/** Pull a level out of a URL hash. Returns null for any hash that has none. */
-export function levelFromHash(hash: string): Level | null {
-  const i = hash.indexOf(HASH_KEY)
-  if (i < 0) return null
-  const encoded = hash.slice(i + HASH_KEY.length)
-  if (encoded.length === 0) return null
-  return decodeLevel(encoded)
-}
 
 /**
  * What a URL hash turned out to contain.
@@ -331,10 +314,4 @@ export function readHash(hash: string): HashResult {
   } catch (err) {
     return { kind: 'bad', reason: err instanceof Error ? err.message : String(err) }
   }
-}
-
-/** As above, but a malformed link yields null instead of throwing. */
-export function tryLevelFromHash(hash: string): Level | null {
-  const r = readHash(hash)
-  return r.kind === 'ok' ? r.level : null
 }
