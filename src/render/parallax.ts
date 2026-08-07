@@ -34,9 +34,31 @@ const SPAN_X = 2400
 const SPAN_Y = 1100
 const GROUND_PER_BAND = 16
 const SKY_PER_BAND = 9
+/** Horizontal cull margin, in screen px. See the note at its use site. */
+const CULL_X = 320
 
 let bands: Doodle[][] = []
 let seeded = -1
+
+/**
+ * Roll a size off a curve rather than a flat range.
+ *
+ * A flat range gives you a row of props that are all roughly the same, and the
+ * eye reads sixteen near-identical things as a *pattern* — wallpaper, not a
+ * margin. Smoothstep clusters most of them mid-sized, and then roughly one in
+ * six is promoted to a showpiece and one in five demoted to a scribble.
+ *
+ * That is what a real margin looks like: mostly medium, a couple of tiny things
+ * squeezed into a gap, and one house someone clearly spent the whole class on.
+ */
+function sizeRoll(rng: () => number, min: number, max: number): number {
+  const t = rng()
+  const base = min + t * t * (3 - 2 * t) * (max - min)
+  const roll = rng()
+  if (roll < 0.16) return base * (1.55 + rng() * 0.75) // the showpiece
+  if (roll < 0.36) return base * (0.42 + rng() * 0.22) // the afterthought
+  return base
+}
 
 /**
  * Lay out the scenery.
@@ -60,13 +82,16 @@ export function seedParallax(seed: number): void {
     const props: Doodle[] = []
 
     for (let i = 0; i < GROUND_PER_BAND; i++) {
+      const size = sizeRoll(rng, 30, 108)
       props.push({
         kind: GROUND_KINDS[Math.floor(rng() * GROUND_KINDS.length)]!,
         x: rng() * SPAN_X,
         lift: 0,
-        size: 44 + rng() * 62,
+        size,
         bend: (rng() * 2 - 1) * 0.16,
-        a: 26 + rng() * 34,
+        // Building width tracks its height, or a tall roll produces a chimney
+        // and a short one produces a doormat.
+        a: size * (0.34 + rng() * 0.46),
         bIdx: Math.floor(rng() * 97),
       })
     }
@@ -77,7 +102,7 @@ export function seedParallax(seed: number): void {
         x: rng() * SPAN_X,
         // Well clear of the ground line, so the sky reads as sky.
         lift: 150 + rng() * 460,
-        size: 40 + rng() * 54,
+        size: sizeRoll(rng, 26, 92),
         bend: rng() * Math.PI * 2,
         a: 0,
         bIdx: Math.floor(rng() * 97),
@@ -116,7 +141,6 @@ export function drawParallax(
     const shiftY = stillness ? 0 : camY * band.fy
 
     ctx.globalAlpha = band.alpha
-    ctx.lineWidth = 1.5
 
     const rowShift = ((shiftY % SPAN_Y) + SPAN_Y) % SPAN_Y
     const firstCol = Math.floor((shiftX - w) / SPAN_X)
@@ -131,8 +155,21 @@ export function drawParallax(
       for (let k = firstCol; k <= lastCol; k++) {
         for (const p of props) {
           const x = p.x + k * SPAN_X - shiftX
-          if (x < -140 || x > w + 140) continue
-          drawDoodle(ctx, { ...p, x, size: p.size * band.scale, lift: p.lift * band.scale }, baseline)
+          // The cull margin has to clear the *widest* thing a showpiece roll can
+          // produce, not the nominal size — a shooting star's streaks run about
+          // 2.1× its radius past its centre, so a tight margin pops the trail
+          // off while the star is still on screen.
+          if (x < -CULL_X || x > w + CULL_X) continue
+          const size = p.size * band.scale
+          // Pencil weight tracks size. Held flat, a showpiece comes out spindly
+          // and a scribble comes out as a blot — the same hand pressing about
+          // as hard whatever it is drawing, which is not what a hand does.
+          ctx.lineWidth = 1.1 + Math.min(size, 200) * 0.0055
+          drawDoodle(
+            ctx,
+            { ...p, x, size, a: p.a * band.scale, lift: p.lift * band.scale },
+            baseline,
+          )
         }
       }
     }

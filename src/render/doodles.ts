@@ -75,14 +75,23 @@ const line = (ctx: CanvasRenderingContext2D, ax: number, ay: number, bx: number,
   ctx.stroke()
 }
 
-/** A trunk and three zig-zag tiers. */
+/**
+ * A trunk and a stack of zig-zag tiers.
+ *
+ * The tier *count* scales with height. Three fixed tiers is right on a small
+ * tree and wrong on a tall one: the gaps grow with it until the thing stops
+ * reading as a tree and starts reading as three separate hills. A kid drawing
+ * a big one fills the space with more branches, so this does too.
+ */
 function conifer(ctx: CanvasRenderingContext2D, x: number, base: number, h: number, lean: number): void {
   const tipX = x + h * lean
-  line(ctx, x, base, x + h * lean * 0.35, base - h * 0.22)
-  for (let i = 0; i < 3; i++) {
-    const t0 = 0.22 + (i / 3) * 0.78
-    const t1 = 0.22 + ((i + 1) / 3) * 0.78
-    const spread = (1 - t0) * h * 0.36
+  line(ctx, x, base, x + h * lean * 0.35, base - h * 0.2)
+  const tiers = h > 120 ? 5 : h > 68 ? 4 : 3
+  for (let i = 0; i < tiers; i++) {
+    const t0 = 0.2 + (i / tiers) * 0.8
+    const t1 = 0.2 + ((i + 1) / tiers) * 0.8
+    // The constant term stops the topmost tier collapsing to a bare spike.
+    const spread = (1 - t0) * h * 0.3 + h * 0.035
     const cx0 = x + (tipX - x) * t0
     const cx1 = x + (tipX - x) * t1
     ctx.beginPath()
@@ -100,10 +109,18 @@ function roundTree(ctx: CanvasRenderingContext2D, x: number, base: number, h: nu
   const cy = base - h * 0.66
   ctx.beginPath()
   // Four overlapping arcs, not one circle — a circle looks printed.
+  //
+  // The moveTo has to land on the arc's own start point (centre + its radius,
+  // at angle 0). The first version moved to centre + `r` while the arc ran at
+  // `r * 0.62`, so canvas joined the gap and every tree grew a stray tick out
+  // of its right side.
+  const blob = r * 0.62
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + bend
-    ctx.moveTo(x + Math.cos(a) * r * 0.55 + r, cy + Math.sin(a) * r * 0.5)
-    ctx.arc(x + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.5, r * 0.62, 0, Math.PI * 2)
+    const bx = x + Math.cos(a) * r * 0.55
+    const by = cy + Math.sin(a) * r * 0.5
+    ctx.moveTo(bx + blob, by)
+    ctx.arc(bx, by, blob, 0, Math.PI * 2)
   }
   ctx.stroke()
 }
@@ -168,22 +185,40 @@ function building(
   }
 }
 
-/** Four lines and two crossbars. It is the Eiffel Tower if you squint. */
+/**
+ * The Eiffel Tower, if you squint.
+ *
+ * The first version ran both legs as one curve from the foot straight to the
+ * apex, which draws a **triangle** — at any size above small it read as a tent.
+ * The silhouette people actually recognise is an hourglass: a hard flare at the
+ * feet, a pinch at the second deck, then a near-vertical mast. Two decks, one
+ * arch, one antenna, and it lands.
+ */
 function tower(ctx: CanvasRenderingContext2D, x: number, base: number, h: number): void {
-  const foot = h * 0.3
-  const waist = h * 0.1
+  const foot = h * 0.32
+  const waist = h * 0.075
+  const deck1 = base - h * 0.3
+  const deck2 = base - h * 0.62
+  const top = base - h
+
   ctx.beginPath()
   ctx.moveTo(x - foot, base)
-  ctx.quadraticCurveTo(x - waist, base - h * 0.5, x, base - h)
+  ctx.quadraticCurveTo(x - foot * 0.42, deck1, x - waist, deck2)
+  ctx.lineTo(x - waist * 0.35, top)
   ctx.moveTo(x + foot, base)
-  ctx.quadraticCurveTo(x + waist, base - h * 0.5, x, base - h)
+  ctx.quadraticCurveTo(x + foot * 0.42, deck1, x + waist, deck2)
+  ctx.lineTo(x + waist * 0.35, top)
   ctx.stroke()
-  // The arch at the bottom and one platform, which is all anyone remembers.
+
+  // The arch under the first deck, sagging between the feet.
   ctx.beginPath()
-  ctx.moveTo(x - foot * 0.72, base - h * 0.2)
-  ctx.quadraticCurveTo(x, base - h * 0.05, x + foot * 0.72, base - h * 0.2)
+  ctx.moveTo(x - foot * 0.76, deck1)
+  ctx.quadraticCurveTo(x, base - h * 0.15, x + foot * 0.76, deck1)
   ctx.stroke()
-  line(ctx, x - waist * 1.5, base - h * 0.52, x + waist * 1.5, base - h * 0.52)
+
+  line(ctx, x - foot * 0.52, deck1, x + foot * 0.52, deck1)
+  line(ctx, x - waist * 1.3, deck2, x + waist * 1.3, deck2)
+  line(ctx, x, top, x, top - h * 0.08)
 }
 
 /**
@@ -206,13 +241,31 @@ function star(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): v
   ctx.stroke()
 }
 
-/** A star with three speed lines behind it. */
+/**
+ * A star with three speed lines behind it.
+ *
+ * The streaks are **parallel**, which is what separates this from the comet —
+ * the comet's tail fans. Every offset here is a multiple of `r`: the first
+ * version spaced them by a flat 3 px and started them 0.84 r out from a star
+ * whose points only reached 0.5 r, so a small one showed a detached smudge and
+ * a large one showed three lines fused into a single stripe.
+ */
 function shootingStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, bend: number): void {
-  star(ctx, x, y, r * 0.5)
-  const dx = -Math.cos(bend + 0.4) * r * 2.4
-  const dy = -Math.sin(bend + 0.4) * r * 1.1
+  star(ctx, x, y, r * 0.55)
+  const ang = bend + 2.9
+  const dx = Math.cos(ang)
+  const dy = Math.sin(ang)
+  // Perpendicular, to space the streaks across the direction of travel.
+  const px = -dy
+  const py = dx
   for (let i = -1; i <= 1; i++) {
-    line(ctx, x + dx * 0.35 + i * 3, y + dy * 0.35 + i * 3.5, x + dx + i * 3, y + dy + i * 3.5)
+    const off = i * r * 0.24
+    const near = r * 0.8
+    const far = r * (2.1 - Math.abs(i) * 0.5)
+    ctx.beginPath()
+    ctx.moveTo(x + dx * near + px * off, y + dy * near + py * off)
+    ctx.lineTo(x + dx * far + px * off, y + dy * far + py * off)
+    ctx.stroke()
   }
 }
 
@@ -252,34 +305,37 @@ function comet(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, b
  * It has to be slightly wrong to be right.
  */
 function coolS(ctx: CanvasRenderingContext2D, x: number, y: number, h: number): void {
-  const w = h * 0.3
-  const topA = y - h * 0.26 // where the rails begin, below the point
-  const botA = y + h * 0.26
-  const midL = y + h * 0.07
-  const midR = y - h * 0.07
+  const H = h * 0.5
+  const w = h * 0.28 // how far the rails sit from centre
+  const t = h * 0.105 // half the ribbon's width
 
-  // The two rails: left runs high-to-low, right low-to-high. They are what make
-  // it read as an S rather than a zigzag.
-  ctx.beginPath()
-  ctx.moveTo(x - w, topA)
-  ctx.lineTo(x - w, midL)
-  ctx.moveTo(x + w, midR)
-  ctx.lineTo(x + w, botA)
-  ctx.stroke()
+  // It is a *ribbon*, and that is the whole trick. Trace one path — point at the
+  // top, down the left rail, one long diagonal across, down the right rail,
+  // point at the bottom — then draw it twice, offset to either side. The two
+  // ends collapse onto the spine, which is what makes them points.
+  //
+  // The first version drew single lines instead: a left rail, a right rail, a
+  // near-horizontal diagonal and two V caps. Those six strokes close into a
+  // hexagon with a bar across it. It was not an S from any angle.
+  const spine: readonly (readonly [number, number])[] = [
+    [0, -H],
+    [-w, -H * 0.62],
+    [-w, -H * 0.12],
+    [w, H * 0.12],
+    [w, H * 0.62],
+    [0, H],
+  ]
 
-  // The crossing diagonal.
-  ctx.beginPath()
-  ctx.moveTo(x - w, midL)
-  ctx.lineTo(x + w, midR)
-  ctx.stroke()
-
-  // Pointed ends: a shallow V at the top, another at the bottom.
-  ctx.beginPath()
-  ctx.moveTo(x - w, topA)
-  ctx.lineTo(x, y - h * 0.5)
-  ctx.lineTo(x + w, midR)
-  ctx.moveTo(x + w, botA)
-  ctx.lineTo(x, y + h * 0.5)
-  ctx.lineTo(x - w, midL)
-  ctx.stroke()
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    for (let i = 0; i < spine.length; i++) {
+      const [sx, sy] = spine[i]!
+      // Ends stay on the spine so the S tapers to a point rather than stopping
+      // flat; everything between is pushed sideways to give the ribbon width.
+      const shift = i === 0 || i === spine.length - 1 ? 0 : side * t
+      if (i === 0) ctx.moveTo(x + sx + shift, y + sy)
+      else ctx.lineTo(x + sx + shift, y + sy)
+    }
+    ctx.stroke()
+  }
 }
