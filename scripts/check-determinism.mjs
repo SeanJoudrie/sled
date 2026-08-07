@@ -19,7 +19,8 @@ import { dirname, join } from 'node:path'
 import { BRUSH, BRUSHES, CONTACT_R, buildWorld, spawn, step } from '../src/sim/index.ts'
 import { decodeLevel, encodeLevel } from '../src/level/format.ts'
 import { decorRng } from '../src/level/prng.ts'
-import { fixtureDescent, fixturePortal } from '../src/level/fixtures.ts'
+import { fixtureDemo, fixtureDescent, fixturePortal } from '../src/level/fixtures.ts'
+import { fitZoom } from '../src/render/camera.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SIM_DIR = join(ROOT, 'src', 'sim')
@@ -211,7 +212,7 @@ check(9, 'coverage · the fixtures touch every brush', () => {
   }
 
   // Solid brushes: did a RIDE point come within contact range of one?
-  for (const id of [BRUSH.INK, BRUSH.ICE, BRUSH.TAR, BRUSH.BOOST, BRUSH.KILL]) {
+  for (const id of [BRUSH.INK, BRUSH.ICE, BRUSH.TAR, BRUSH.BOOST, BRUSH.SPIKES]) {
     const segs = descent.l.filter((s) => s[0] === id)
     if (!touchedAny(baseDescent.trace, segs)) missing.push(`brush ${id} never contacted`)
   }
@@ -375,6 +376,53 @@ check(15, 'copy · no stale pen count in the shipped text', () => {
       }
     }
   }
+  return notes.length === 0 ? true : notes.join('; ')
+})
+
+check(16, 'first run · the demo track fits a phone whole and ends in a win', () => {
+  // Nothing else tests the first five seconds, which is the only part of this
+  // product most people will ever see.
+  //
+  // The previous example was 2200 px wide. `fitZoom` will not frame that on a
+  // 390 px phone above a legible zoom, so it framed the start and cropped the
+  // rest: a tutorial that showed three of eight brushes and gave no sign it was
+  // holding anything back. And it ended on a kill wall, so the first thing every
+  // visitor watched was a failure.
+  //
+  // `fitZoom` is imported rather than reimplemented. A copy here would drift
+  // from the app and start passing on a framing nobody ships.
+  const demo = fixtureDemo()
+  const r = run(demo)
+  const notes = []
+
+  if (r.state !== 'finished') notes.push(`ends "${r.state}", not "finished"`)
+  if (r.ticks > 600) notes.push(`takes ${(r.ticks / 60).toFixed(1)}s — too long for a first look`)
+
+  const present = new Set(demo.l.map((s) => s[0]))
+  for (const id of Object.values(BRUSH)) {
+    if (!present.has(id)) notes.push(`brush ${id} missing from the demo`)
+  }
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  const put = (x, y) => {
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  put(demo.s[0], demo.s[1])
+  for (const [, x1, y1, x2, y2] of demo.l) {
+    put(x1, y1)
+    put(x2, y2)
+  }
+
+  for (const [name, vw, vh] of [['phone', 390, 844], ['desktop', 1100, 720]]) {
+    const f = fitZoom(vw, vh, maxX - minX, maxY - minY)
+    if (!f.whole) notes.push(`${name}: does not fit whole, falls back to framing the start`)
+    // Below about 0.45 the sled is under 13 px and the ruling starts to moiré.
+    if (f.zoom < 0.45) notes.push(`${name}: fits only at zoom ${f.zoom.toFixed(3)}`)
+  }
+
   return notes.length === 0 ? true : notes.join('; ')
 })
 

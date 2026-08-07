@@ -9,12 +9,14 @@
 
 // ── brushes ──────────────────────────────────────────────────────────────────
 
+// SPIKES was KILL for as long as the brush was called Kill. The name a reader
+// greps for should be the name on the material sheet.
 export const BRUSH = {
   INK: 0,
   ICE: 1,
   TAR: 2,
   BOOST: 3,
-  KILL: 4,
+  SPIKES: 4,
   WATER: 5,
   SCENERY: 6,
   FINISH: 7,
@@ -50,7 +52,7 @@ export type BrushDef = {
 }
 
 /**
- * Seven brushes, seven mechanics, one table. Colour means behaviour — a level
+ * Eight brushes, eight mechanics, one table. Colour means behaviour — a level
  * has to be readable without a legend.
  *
  * Friction is per tick of contact and a resting sled touches 60×/second, so
@@ -64,7 +66,7 @@ export const BRUSHES: readonly BrushDef[] = [
   { id: BRUSH.ICE,     name: 'Ice',     token: '--sled-cyan',   cls: 'highlighter', collides: true,  friction: 0.0,   boost: 0,    kills: false, water: false, finishes: false },
   { id: BRUSH.TAR,     name: 'Tar',     token: '--sled-brown',  cls: 'highlighter', collides: true,  friction: 0.038, boost: 0,    kills: false, water: false, finishes: false },
   { id: BRUSH.BOOST,   name: 'Boost',   token: '--sled-yellow', cls: 'highlighter', collides: true,  friction: 0.003, boost: 0.08, kills: false, water: false, finishes: false },
-  { id: BRUSH.KILL,    name: 'Spikes',  token: '--sled-red',    cls: 'ink',         collides: true,  friction: 0.004, boost: 0,    kills: true,  water: false, finishes: false },
+  { id: BRUSH.SPIKES,  name: 'Spikes',  token: '--sled-red',    cls: 'ink',         collides: true,  friction: 0.004, boost: 0,    kills: true,  water: false, finishes: false },
   { id: BRUSH.WATER,   name: 'Water',   token: '--sled-blue',   cls: 'ink',         collides: false, friction: 0,     boost: 0,    kills: false, water: true,  finishes: false },
   { id: BRUSH.SCENERY, name: 'Scenery', token: '--sled-pencil', cls: 'ink',         collides: false, friction: 0,     boost: 0,    kills: false, water: false, finishes: false },
   // Green, and the only brush that ends a run happily. Does not collide: you

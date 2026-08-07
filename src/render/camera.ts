@@ -118,6 +118,45 @@ export function follow(
   cam.zoom += (want - cam.zoom) * 0.05
 }
 
+/**
+ * Below this, "fitting" stops being useful.
+ *
+ * A 2200 px track on a 390 px phone works out at zoom 0.125, which makes the
+ * sled three pixels tall and squeezes the 28 px ruling into corduroy. Seeing the
+ * whole level is worth less than being able to see anything in it.
+ */
+export const MIN_FIT_ZOOM = 0.5
+
+/**
+ * What zoom frames this much content in this much viewport, and whether it
+ * fits at all.
+ *
+ * Pure, and exported, so the determinism gate can assert that the track a first
+ * visitor lands on actually fits on a phone. That check is only worth anything
+ * if it uses the same arithmetic the app does — a copy in the test would drift
+ * from this one and start passing on a framing nobody ships.
+ *
+ * `whole: false` means the caller should frame the *start* instead: there is no
+ * zoom at which the content both fits and stays legible.
+ */
+export function fitZoom(
+  viewW: number,
+  viewH: number,
+  contentW: number,
+  contentH: number,
+): { zoom: number; whole: boolean } {
+  // The corner clusters overlay the canvas, so the usable area is smaller than
+  // the viewport. Proportional, or a phone loses half its width to padding.
+  const padX = Math.min(80, viewW * 0.12)
+  const padY = Math.min(96, viewH * 0.14)
+  const availW = Math.max(140, viewW - padX * 2)
+  const availH = Math.max(140, viewH - padY * 2)
+  const fit = Math.min(availW / Math.max(contentW, 1), availH / Math.max(contentH, 1))
+  return fit >= MIN_FIT_ZOOM
+    ? { zoom: quantiseZoom(Math.min(fit, 1)), whole: true }
+    : { zoom: MIN_FIT_ZOOM, whole: false }
+}
+
 /** Drop follow velocity, so resuming an edit does not inherit a run's drift. */
 export function settle(cam: Camera): void {
   cam.vx = 0

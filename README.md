@@ -19,7 +19,7 @@ You can draw a track and watch him ride it, and the level travels in the URL.
 | --- | --- |
 | ✅ **Sim core** | 5-point rig, 6 constraints, 8 brushes, 3 stamps, swept collision |
 | ✅ **Level format** | half-pixel integers → delta → zig-zag → varint → base64url |
-| ✅ **Determinism gate** | 15 checks, green |
+| ✅ **Determinism gate** | 16 checks, green |
 | ✅ **The page** | paper, grain and crinkle, ruled lines, ink vs highlighter, doodles |
 | ✅ **Editor** | draw, undo/redo, erase, pan, zoom, play, reset — all eight brushes |
 | ✅ **Share link** | the level lives in the URL; no backend of any kind |
@@ -115,7 +115,7 @@ republishes it.
 ```sh
 npm install
 npm run dev        # the editor
-npm run verify     # the determinism gate — 15 checks
+npm run verify     # the determinism gate — 16 checks
 npm test           # typecheck + verify
 npm run build      # typecheck + production build
 ```
@@ -139,7 +139,7 @@ src/level/
   format.ts         encode / decode / share link
   stroke.ts         strokes — the authoring form of a drawn line
   prng.ts           decoration PRNG — never touched by the sim
-  fixtures.ts       the two fixture levels
+  fixtures.ts       the demo track, plus the two gate fixtures
 src/render/         all render state; never written back to the sim
   paper.ts          paper, grain, crinkle, creases, ruled lines
   strokes.ts        ink vs highlighter, water, spikes, finish tape
@@ -190,6 +190,9 @@ finish tape — run for up to 3,000 ticks against a checksum taken over the raw
 IEEE-754 bits of every point, every tick. Between them they touch all eight
 brushes and all three stamps.
 
+A third level, the demo, is what a first visitor lands on. Check 16 holds it to a
+different standard: it has to fit a phone screen *whole* and end in a win.
+
 | # | Check |
 | --- | --- |
 | 1, 4 | identical across two runs in the same process |
@@ -204,6 +207,7 @@ brushes and all three stamps.
 | 13 | v1 level strings still decode, and mean the same thing |
 | 14 | the portal one-way flag actually blocks the return trip |
 | 15 | no stale pen count in the shipped meta tags |
+| 16 | the demo track fits a phone whole and ends in a win |
 
 Checks 9 and 10 exist because a fixture that stops covering a mechanic makes the
 other checks pass on a track that no longer exercises it — which is how a gate
